@@ -1,0 +1,272 @@
+// ZAHFIT — schéma de données (Sprint 1 : identité, établissements, rôles, audit)
+//
+// Conventions :
+//  - Tables et colonnes en snake_case (@@map / @map), modèles Prisma en PascalCase.
+//  - Dates en timestamptz (UTC). Affichage en Africa/Abidjan côté application.
+//  - Toute table métier porte `tenant_id` et est protégée par RLS
+//    (voir prisma/migrations/*_rls/migration.sql).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identité (gérée par Better Auth) — tables GLOBALES, sans tenant_id :
+// une même personne peut être coach dans une salle et adhérente dans une autre.
+// ---------------------------------------------------------------------------
+
+model User {
+  id               String   @id
+  name             String
+  email            String   @unique
+  emailVerified    Boolean  @default(false) @map("email_verified")
+  image            String?
+  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
+  /// "SUPER_ADMIN" pour l'équipe ZahDigit, null pour tous les autres.
+  platformRole     String?  @map("platform_role")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions    Session[]
+  accounts    Account[]
+  twoFactors  TwoFactor[]
+  memberships TenantMembership[]
+  memberProfiles Member[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model TwoFactor {
+  id          String @id
+  secret      String
+  backupCodes String @map("backup_codes")
+  userId      String @map("user_id")
+  /// false tant que l'utilisateur n'a pas validé son premier code TOTP
+  verified                Boolean   @default(true)
+  /// verrouillage après tentatives échouées (anti brute-force)
+  failedVerificationCount Int       @default(0) @map("failed_verification_count")
+  lockedUntil             DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([secret])
+  @@map("two_factors")
+}
+
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt @map("last_request")
+
+  @@map("rate_limits")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant
+// ---------------------------------------------------------------------------
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// Rôles À L'INTÉRIEUR d'un établissement (section 4 du cahier des charges).
+/// Le Super Admin ZahDigit n'est pas ici : c'est User.platformRole.
+enum TenantRole {
+  ADMIN
+  MANAGER
+  RECEPTIONIST
+  COACH
+  ACCOUNTANT
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  DISABLED
+}
+
+model Tenant {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  slug      String       @unique
+  name      String
+  status    TenantStatus @default(ACTIVE)
+  phone     String?
+  email     String?
+  address   String?
+  commune   String?
+  city      String?
+  timezone  String       @default("Africa/Abidjan")
+  currency  String       @default("XOF")
+  description  String?
+  /// { "lun": "06:00-22:00", ..., "dim": null } — null = fermé
+  openingHours Json?     @map("opening_hours")
+  /// { "facebook": url, "instagram": url, "tiktok": url, "website": url }
+  socials      Json?
+  logoUrl      String?   @map("logo_url")
+  /// Compteur des codes adhérents (ADH-000001…), incrémenté en transaction
+  memberSeq    Int       @default(0) @map("member_seq")
+  suspendedReason String? @map("suspended_reason")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
+
+  memberships TenantMembership[]
+  auditLogs   AuditLog[]
+  members     Member[]
+
+  @@map("tenants")
+}
+
+// ---------------------------------------------------------------------------
+// Adhérents (Module 2)
+// ---------------------------------------------------------------------------
+
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum MemberSource {
+  RECEPTION
+  ONLINE
+  IMPORT
+}
+
+/// Fiche adhérent. Volontairement SANS champ libre de notes : le cahier des
+/// charges exclut les données de santé du périmètre (section 9).
+model Member {
+  id        String       @id @default(uuid(7)) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  /// Code lisible unique dans la salle : ADH-000123
+  code      String
+  firstName String       @map("first_name")
+  lastName  String       @map("last_name")
+  /// Format E.164 normalisé (+2250701020304) : clé de dédoublonnage
+  phone     String
+  email     String?
+  birthDate DateTime?    @map("birth_date") @db.Date
+  photoUrl  String?      @map("photo_url")
+  status    MemberStatus @default(ACTIVE)
+  source    MemberSource @default(RECEPTION)
+  /// Compte de connexion à l'espace adhérent (optionnel)
+  userId    String?      @map("user_id")
+
+  // Consentements (section 8 : communications commerciales)
+  consentWhatsapp  Boolean   @default(false) @map("consent_whatsapp")
+  consentSms       Boolean   @default(false) @map("consent_sms")
+  consentEmail     Boolean   @default(false) @map("consent_email")
+  consentUpdatedAt DateTime? @map("consent_updated_at") @db.Timestamptz(3)
+
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, phone])
+  @@unique([tenantId, userId])
+  @@index([tenantId, status, lastName])
+  @@index([tenantId, createdAt])
+  @@map("members")
+}
+
+model TenantMembership {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  tenantId  String           @map("tenant_id") @db.Uuid
+  userId    String           @map("user_id")
+  role      TenantRole
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("tenant_memberships")
+}
+
+/// Journal des opérations sensibles. En AJOUT SEUL : le rôle applicatif
+/// n'a pas les droits UPDATE/DELETE sur cette table.
+model AuditLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  /// null = événement plateforme (connexion, action Super Admin hors salle)
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id")
+  action      String
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id")
+  before      Json?
+  after       Json?
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}

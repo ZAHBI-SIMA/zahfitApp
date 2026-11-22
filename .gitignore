@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Ajouts ZAHFIT
+!.env.example
+/lib/generated/
+
+# Documents internes ZahDigit : ne jamais publier (dépôt public)
+/input/
+/docs/PLAN_DE_DEVELOPPEMENT.md

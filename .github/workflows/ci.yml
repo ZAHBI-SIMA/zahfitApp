@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: zahfit_owner
+          POSTGRES_PASSWORD: zahfit_owner_ci
+          POSTGRES_DB: zahfit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U zahfit_owner"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://zahfit_app:zahfit_app_ci@localhost:5432/zahfit
+      MIGRATE_DATABASE_URL: postgresql://zahfit_owner:zahfit_owner_ci@localhost:5432/zahfit
+      TEST_DATABASE_URL: postgresql://zahfit_app:zahfit_app_ci@localhost:5432/zahfit_test
+      TEST_MIGRATE_DATABASE_URL: postgresql://zahfit_owner:zahfit_owner_ci@localhost:5432/zahfit_test
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-in-production-000
+      BETTER_AUTH_URL: http://localhost:3100
+      ENFORCE_2FA: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Préparer les rôles PostgreSQL
+        run: |
+          PGPASSWORD=zahfit_owner_ci psql -h localhost -U zahfit_owner -d zahfit -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE zahfit_app LOGIN PASSWORD 'zahfit_app_ci' NOSUPERUSER NOBYPASSRLS;
+          CREATE DATABASE zahfit_test OWNER zahfit_owner;
+          SQL
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
