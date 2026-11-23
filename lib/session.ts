@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { withUser } from "@/lib/db";
@@ -84,16 +85,19 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   };
 });
 
-/** Garde de l'espace Super Admin ZahDigit. */
-export async function requireSuperAdmin(): Promise<SessionUser> {
+/**
+ * Gardes « nues », sans `connection()` : réservées au cadre des espaces,
+ * mis en cache privé (`"use cache: private"` interdit `connection()`).
+ * Les pages utilisent `requireSuperAdmin()` / `requireSpace()` ci-dessous.
+ */
+export async function guardSuperAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (!isSuperAdmin(user)) redirect("/espace");
   if (enforce2FA() && !user.twoFactorEnabled) redirect("/securite/2fa");
   return user;
 }
 
-/** Garde d'un espace de salle (admin, réception, coach, adhérent). */
-export async function requireSpace(space: TenantSpace): Promise<TenantContext> {
+export async function guardSpace(space: TenantSpace): Promise<TenantContext> {
   const ctx = await getTenantContext();
   if (!ctx || !canAccessSpace(ctx.role, space)) redirect("/espace");
   if (ctx.tenant.status === "SUSPENDED" && ctx.role !== "MEMBER") redirect("/salle-suspendue");
@@ -101,4 +105,21 @@ export async function requireSpace(space: TenantSpace): Promise<TenantContext> {
     redirect("/securite/2fa");
   }
   return ctx;
+}
+
+/**
+ * Garde d'une PAGE de l'espace Super Admin. `connection()` d'abord : la
+ * vérification de session (horloge, base) se fait à la requête, jamais
+ * pendant la préparation de l'App Shell. La page s'affiche dans le
+ * squelette `loading.tsx` de l'espace le temps de cette vérification.
+ */
+export async function requireSuperAdmin(): Promise<SessionUser> {
+  await connection();
+  return guardSuperAdmin();
+}
+
+/** Garde d'une PAGE d'un espace de salle (admin, réception, coach, adhérent). */
+export async function requireSpace(space: TenantSpace): Promise<TenantContext> {
+  await connection();
+  return guardSpace(space);
 }

@@ -16,6 +16,28 @@ export function PageHeader({ title, description, children }: {
   );
 }
 
+/**
+ * Squelette de la zone de contenu, affiché par les `loading.tsx` des espaces
+ * pendant qu'une page lit la session et la base. Le menu reste affiché :
+ * seule la page change lors d'une navigation interne.
+ */
+export function PageSkeleton() {
+  return (
+    <div className="animate-pulse" aria-busy="true" aria-label="Chargement">
+      <div className="mb-6">
+        <div className="h-7 w-56 rounded bg-muted" />
+        <div className="mt-2 h-4 w-72 max-w-full rounded bg-muted" />
+      </div>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-20 rounded-xl bg-muted" />
+        ))}
+      </div>
+      <div className="h-64 rounded-xl bg-muted" />
+    </div>
+  );
+}
+
 export function StatCard({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
     <div className="rounded-xl border bg-card p-4">
