@@ -11,7 +11,7 @@ Adhérents, abonnements, paiements Mobile Money, contrôle d'accès par QR Code,
 | 1 | Socle : multi-tenant + RLS PostgreSQL, Better Auth (2FA, limitation des tentatives), RBAC, 5 espaces | ✅ |
 | 2 | Salles (Super Admin), adhérents (fiche, recherche, archivage, import CSV), équipe, paramètres, journal d'audit | ✅ |
 | 3 | Formules, cycle de vie des abonnements (attribution, renouvellement, suspension, prolongation, annulation), encaissement manuel, listes de suivi, tableau de bord | ✅ |
-| 4 | Reçus PDF, paiement partiel, impayés, remboursements, export comptable | ⏳ |
+| 4 | Reçus PDF numérotés (envoi par e-mail), paiement partiel avec acompte, soldes impayés, remboursements (avoirs), journal des paiements, export comptable CSV | ✅ |
 | 5 | Paiement Mobile Money en ligne, inscription publique → **salle pilote** | ⏳ |
 
 ## Stack

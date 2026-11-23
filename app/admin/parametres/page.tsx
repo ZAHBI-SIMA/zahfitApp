@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { TenantSettingsForm } from "@/components/tenants/tenant-forms";
+import { BillingSettingsForm } from "@/components/payments/payment-forms";
 import { withTenant } from "@/lib/db";
 import { can } from "@/lib/rbac/permissions";
 import { requireSpace } from "@/lib/session";
@@ -30,6 +31,24 @@ export default async function SettingsPage() {
           socials={readSocials(tenant.socials)}
         />
       </div>
+
+      {can(ctx.role, "billing.settings.manage") && (
+        <section className="mt-6 max-w-4xl rounded-xl border bg-card p-5" aria-labelledby="encaissements">
+          <h2 id="encaissements" className="mb-1 text-sm font-medium">
+            Encaissements et reçus
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Réservé à l&apos;administrateur. Prochain reçu : REC-{String(tenant.receiptSeq + 1).padStart(6, "0")}.
+          </p>
+          <BillingSettingsForm
+            settings={{
+              allowPartialPayment: tenant.allowPartialPayment,
+              minDepositPercent: tenant.minDepositPercent,
+              receiptFooter: tenant.receiptFooter,
+            }}
+          />
+        </section>
+      )}
     </>
   );
 }

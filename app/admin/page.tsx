@@ -47,8 +47,8 @@ export default async function AdminHome() {
       <div className="mt-6">
         <UpcomingList
           items={[
-            { sprint: 4, label: "Reçus PDF, paiement partiel, impayés, remboursements, export comptable" },
-            { sprint: 5, label: "Paiement Mobile Money en ligne et statistiques détaillées" },
+            { sprint: 5, label: "Paiement Mobile Money en ligne et inscription publique" },
+            { sprint: 6, label: "Contrôle d'accès par QR Code" },
           ]}
         />
       </div>

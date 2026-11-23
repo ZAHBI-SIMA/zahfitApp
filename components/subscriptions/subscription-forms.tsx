@@ -103,16 +103,34 @@ export function AssignSubscriptionForm({
   );
 }
 
-export function CollectPaymentForm({ subscriptionId, amountXof }: { subscriptionId: string; amountXof: number }) {
+/**
+ * Encaissement du solde restant. Si la salle autorise le paiement en
+ * plusieurs fois, le montant est modifiable (le serveur vérifie l'acompte
+ * minimum) ; sinon c'est toujours le solde complet.
+ */
+export function CollectPaymentForm({
+  subscriptionId,
+  amountXof,
+  allowPartial = false,
+}: {
+  subscriptionId: string;
+  amountXof: number;
+  allowPartial?: boolean;
+}) {
   const { state, pending, onSubmit } = useFormAction(collectPaymentAction);
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <FormMessage state={state} />
       <input type="hidden" name="subscriptionId" value={subscriptionId} />
+      {allowPartial && (
+        <Field name="amountXof" label="Montant encaissé (FCFA)" state={state} hint={`Reste à payer : ${formatXof(amountXof)}`}>
+          <Input id={`amount-${subscriptionId}`} name="amountXof" inputMode="numeric" defaultValue={amountXof} className="sm:w-48" />
+        </Field>
+      )}
       <PaymentFields state={state} />
       <div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Enregistrement…" : `Encaisser ${formatXof(amountXof)}`}
+          {pending ? "Enregistrement…" : allowPartial ? "Encaisser" : `Encaisser ${formatXof(amountXof)}`}
         </Button>
       </div>
     </form>
@@ -212,12 +230,16 @@ export function SubscriptionActions({
   subscriptionId,
   status,
   priceXof,
+  balanceXof,
+  allowPartial,
   freezeAvailable,
   permissions,
 }: {
   subscriptionId: string;
   status: string;
   priceXof: number;
+  balanceXof: number;
+  allowPartial: boolean;
   freezeAvailable: boolean;
   permissions: SubscriptionPermissions;
 }) {
@@ -227,7 +249,9 @@ export function SubscriptionActions({
 
   return (
     <div className="flex flex-col gap-3">
-      {pending && permissions.canCollect && <CollectPaymentForm subscriptionId={subscriptionId} amountXof={priceXof} />}
+      {balanceXof > 0 && permissions.canCollect && (
+        <CollectPaymentForm subscriptionId={subscriptionId} amountXof={balanceXof} allowPartial={allowPartial} />
+      )}
       <div className="flex flex-wrap items-start gap-2">
         {status === "ACTIVE" && permissions.canWrite && freezeAvailable && (
           <SimpleAction

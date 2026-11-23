@@ -2,7 +2,8 @@
 
 import { ok, requireActionContext, toFormState } from "@/lib/actions";
 import { withTenant } from "@/lib/db";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatXof } from "@/lib/format";
+import { sendReceiptByEmail } from "@/modules/payments/receipt-email";
 import { requirePermission } from "@/lib/rbac/guard";
 import { can } from "@/lib/rbac/permissions";
 import { parseForm, type FormState } from "@/lib/validation";
@@ -22,6 +23,11 @@ import {
 
 const subscriptionIdOf = (formData: FormData) => String(formData.get("subscriptionId") ?? "");
 
+function receiptMessage(collected: { receipt: { number: string }; balanceAfter: number }, emailed: boolean) {
+  const balance = collected.balanceAfter > 0 ? ` Reste à payer : ${formatXof(collected.balanceAfter)}.` : " Abonnement soldé.";
+  return `Reçu ${collected.receipt.number}${emailed ? " envoyé par e-mail" : ""}.${balance}`;
+}
+
 export async function assignSubscriptionAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
     const ctx = await requireActionContext("subscriptions.write");
@@ -38,14 +44,18 @@ export async function assignSubscriptionAction(_prev: FormState, formData: FormD
     }
 
     const actor = { tenantId: ctx.tenant.id, userId: ctx.user.id };
-    const sub = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {
+    const { sub, collected } = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {
       const created = await assignSubscription(tx, actor, parsed.data, todayCalendar());
-      if (payment && created.priceXof > 0) await recordManualPayment(tx, actor, created.id, payment);
-      return created;
+      const result = payment && created.priceXof > 0 ? await recordManualPayment(tx, actor, created.id, payment) : null;
+      return { sub: created, collected: result };
     });
     const period = `du ${formatDate(sub.startDate)} au ${formatDate(sub.endDate)}`;
+    if (collected) {
+      const emailed = await sendReceiptByEmail(actor, collected.receipt.id);
+      return ok(`Abonnement « ${sub.planName} » actif ${period}. ${receiptMessage(collected, emailed)}`);
+    }
     return ok(
-      payment || sub.priceXof === 0
+      sub.priceXof === 0
         ? `Abonnement « ${sub.planName} » actif ${period}.`
         : `Abonnement « ${sub.planName} » créé ${period}, en attente de paiement.`,
     );
@@ -59,10 +69,12 @@ export async function collectPaymentAction(_prev: FormState, formData: FormData)
     const ctx = await requireActionContext("payments.collect");
     const parsed = parseForm(paymentSchema, formData);
     if (parsed.state) return parsed.state;
-    await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
-      recordManualPayment(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, subscriptionIdOf(formData), parsed.data),
+    const actor = { tenantId: ctx.tenant.id, userId: ctx.user.id };
+    const collected = await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
+      recordManualPayment(tx, actor, subscriptionIdOf(formData), parsed.data),
     );
-    return ok("Paiement enregistré : l'abonnement est actif.");
+    const emailed = await sendReceiptByEmail(actor, collected.receipt.id);
+    return ok(`Paiement enregistré. ${receiptMessage(collected, emailed)}`);
   } catch (error) {
     return toFormState(error);
   }

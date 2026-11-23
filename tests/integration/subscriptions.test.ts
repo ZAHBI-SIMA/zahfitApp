@@ -92,6 +92,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const tenants = { in: [A.tenantId, B.tenantId] };
+  await owner.receipt.deleteMany({ where: { tenantId: tenants } }); // les reçus référencent les paiements
   await owner.payment.deleteMany({ where: { tenantId: tenants } });
   await owner.subscription.updateMany({ where: { tenantId: tenants }, data: { previousId: null } });
   await owner.subscription.deleteMany({ where: { tenantId: tenants } });
@@ -111,7 +112,9 @@ describe("Activation par le paiement", () => {
     expect(sub.status).toBe("PENDING_PAYMENT");
     expect([isoDate(sub.startDate), isoDate(sub.endDate)]).toEqual(["2027-03-10", "2027-04-09"]);
 
-    const payment = await inA((tx) => recordManualPayment(tx, A, sub.id, { method: "MOBILE_MONEY", providerRef: `OM-${run}` }));
+    const { payment } = await inA((tx) =>
+      recordManualPayment(tx, A, sub.id, { method: "MOBILE_MONEY", providerRef: `OM-${run}` }),
+    );
     expect(payment.amountXof).toBe(20_000);
     expect(payment.status).toBe("SUCCEEDED");
     const after = await owner.subscription.findUniqueOrThrow({ where: { id: sub.id } });

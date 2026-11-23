@@ -3,12 +3,20 @@
  * - RESEND_API_KEY défini → envoi réel via l'API Resend.
  * - sinon (développement) → affichage dans la console du serveur.
  */
-type Mail = { to: string; subject: string; html: string; text: string };
+type Mail = {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  /** Pièces jointes encodées en base64 (format attendu par l'API Resend) */
+  attachments?: { filename: string; content: string }[];
+};
 
 export async function sendMail(mail: Mail): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.info(`\n[mail:dev] → ${mail.to}\n  Objet : ${mail.subject}\n  ${mail.text}\n`);
+    const files = mail.attachments?.map((a) => a.filename).join(", ");
+    console.info(`\n[mail:dev] → ${mail.to}\n  Objet : ${mail.subject}\n  ${mail.text}${files ? `\n  Pièces jointes : ${files}` : ""}\n`);
     return;
   }
 
@@ -21,6 +29,7 @@ export async function sendMail(mail: Mail): Promise<void> {
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
+      ...(mail.attachments ? { attachments: mail.attachments } : {}),
     }),
   });
   if (!res.ok) {

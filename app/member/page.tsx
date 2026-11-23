@@ -26,6 +26,10 @@ export default async function MemberHome() {
 
   const subs = (data?.subscriptions ?? []).map((s) => ({ ...s, effective: effectiveStatus(s, today) }));
   const current = subs.filter((s) => ["ACTIVE", "FROZEN", "UPCOMING", "PENDING_PAYMENT"].includes(s.effective)).reverse();
+  const receipts = subs
+    .flatMap((s) => s.payments.map((p) => ({ ...p, planName: s.planName })))
+    .filter((p) => p.status === "SUCCEEDED" && p.receipt)
+    .reverse();
 
   return (
     <>
@@ -85,9 +89,30 @@ export default async function MemberHome() {
         </section>
       )}
 
+      {receipts.length > 0 && (
+        <section className="mb-6 rounded-xl border bg-card p-5" aria-labelledby="recus">
+          <h2 id="recus" className="mb-3 text-sm font-medium">
+            Mes reçus
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {receipts.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+                <a href={`/api/recus/${p.receipt!.id}`} target="_blank" rel="noopener" className="font-mono text-brand hover:underline">
+                  {p.receipt!.number}
+                </a>
+                <span className="text-muted-foreground">
+                  {p.planName} · {formatDate(p.paidAt)} · {p.kind === "REFUND" ? "−" : ""}
+                  {formatXof(p.amountXof)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <UpcomingList
         items={[
-          { sprint: 5, label: "Payer et renouveler en ligne, télécharger mes reçus" },
+          { sprint: 5, label: "Payer et renouveler en ligne" },
           { sprint: 6, label: "Présenter mon QR Code à l'entrée" },
           { sprint: 8, label: "Réserver un cours" },
         ]}

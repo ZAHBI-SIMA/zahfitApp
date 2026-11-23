@@ -5,6 +5,14 @@ import { BusinessError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import type { PaymentMethod, Prisma, SubscriptionStatus } from "@/lib/generated/prisma/client";
 import { checkbox } from "@/lib/validation";
+import { formatXof } from "@/lib/format";
+import {
+  activationThreshold,
+  issueReceipt,
+  lockRow,
+  netPaid,
+  optionalAmountField,
+} from "@/modules/payments/payments.service";
 import {
   addDays,
   computeEndDate,
@@ -44,6 +52,8 @@ const calendarDateField = z
 export const paymentSchema = z
   .object({
     method: z.enum(PAYMENT_METHODS, { error: "Choisissez un moyen de paiement." }),
+    /** Vide = solde restant dû */
+    amountXof: optionalAmountField,
     providerRef: z
       .string()
       .trim()
@@ -88,8 +98,19 @@ export function getMemberSubscriptions(tx: Tx, memberId: string) {
     include: {
       plan: { select: { maxFreezeDays: true, maxEntries: true } },
       payments: {
-        orderBy: { createdAt: "desc" },
-        select: { id: true, amountXof: true, method: true, providerRef: true, status: true, paidAt: true },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          kind: true,
+          refundOfId: true,
+          reason: true,
+          amountXof: true,
+          method: true,
+          providerRef: true,
+          status: true,
+          paidAt: true,
+          receipt: { select: { id: true, number: true } },
+        },
       },
     },
   });
@@ -224,17 +245,37 @@ async function activate(tx: Tx, actor: Actor, subscriptionId: string, reason: "p
 }
 
 /**
- * Encaissement à l'accueil du montant INTÉGRAL (le paiement partiel arrive
- * au Sprint 4). Seule voie d'activation d'un abonnement payant.
+ * Encaissement à l'accueil, total ou partiel (si la salle l'autorise).
+ * Émet un reçu numéroté. L'abonnement s'active dès que le net encaissé
+ * atteint le seuil (prix complet, ou acompte minimum de la salle).
  */
 export async function recordManualPayment(
   tx: Tx,
   actor: Actor,
   subscriptionId: string,
-  input: { method: PaymentMethod; providerRef: string | null },
+  input: { method: PaymentMethod; providerRef: string | null; amountXof?: number },
 ) {
+  await lockRow(tx, "subscriptions", subscriptionId); // deux encaissements simultanés ne dépassent pas le prix
   const sub = await loadSubscription(tx, subscriptionId);
-  if (sub.status !== "PENDING_PAYMENT") throw new BusinessError("Cet abonnement n'attend pas de paiement.");
+  if (!LIVE.includes(sub.status)) throw new BusinessError("Cet abonnement n'est plus en cours.");
+
+  const settings = await tx.tenant.findUniqueOrThrow({
+    where: { id: actor.tenantId },
+    select: { allowPartialPayment: true, minDepositPercent: true },
+  });
+  const paid = await netPaid(tx, sub.id);
+  const balance = sub.priceXof - paid;
+  if (balance <= 0) throw new BusinessError("Cet abonnement est déjà entièrement payé.");
+
+  const amount = input.amountXof ?? balance;
+  if (amount > balance) throw new BusinessError(`Le reste à payer est de ${formatXof(balance)}.`, "amountXof");
+  if (amount < balance && !settings.allowPartialPayment) {
+    throw new BusinessError("La salle n'autorise pas le paiement en plusieurs fois : encaissez le montant total.", "amountXof");
+  }
+  const threshold = activationThreshold(sub.priceXof, settings);
+  if (sub.status === "PENDING_PAYMENT" && paid + amount < threshold) {
+    throw new BusinessError(`Acompte minimum pour activer l'abonnement : ${formatXof(threshold - paid)}.`, "amountXof");
+  }
 
   if (input.providerRef) {
     const duplicate = await tx.payment.findFirst({
@@ -249,7 +290,7 @@ export async function recordManualPayment(
       tenantId: actor.tenantId,
       memberId: sub.memberId,
       subscriptionId: sub.id,
-      amountXof: sub.priceXof,
+      amountXof: amount,
       method: input.method,
       providerRef: input.providerRef,
       status: "SUCCEEDED",
@@ -257,16 +298,23 @@ export async function recordManualPayment(
       paidAt: new Date(),
     },
   });
+  const receipt = await issueReceipt(tx, actor.tenantId, payment);
   await audit(tx, {
     tenantId: actor.tenantId,
     actorUserId: actor.userId,
     action: "payment.collect",
     entityType: "payment",
     entityId: payment.id,
-    after: { subscriptionId: sub.id, amountXof: sub.priceXof, method: input.method, providerRef: input.providerRef },
+    after: {
+      subscriptionId: sub.id,
+      amountXof: amount,
+      method: input.method,
+      providerRef: input.providerRef,
+      receipt: receipt.number,
+    },
   });
-  await activate(tx, actor, sub.id, "payment");
-  return payment;
+  if (sub.status === "PENDING_PAYMENT") await activate(tx, actor, sub.id, "payment");
+  return { payment, receipt, balanceAfter: balance - amount };
 }
 
 export async function freezeSubscription(tx: Tx, actor: Actor, subscriptionId: string, today: Date) {
@@ -377,6 +425,7 @@ export const REPORTS = {
   "a-renouveler": "À renouveler (7 jours)",
   expires: "Expirés (30 derniers jours)",
   "en-attente": "En attente de paiement",
+  impayes: "Soldes impayés",
   "en-cours": "En cours",
 } as const;
 export type ReportKind = keyof typeof REPORTS;
@@ -400,18 +449,31 @@ export function reportWhere(kind: ReportKind, today: Date): Prisma.SubscriptionW
       };
     case "en-attente":
       return { status: "PENDING_PAYMENT" };
+    case "impayes":
+      // Filtré ensuite sur le solde réel (voir subscriptionReport).
+      return { status: { in: ["ACTIVE", "FROZEN"] }, priceXof: { gt: 0 } };
     case "en-cours":
       return { OR: [{ status: "ACTIVE", startDate: { lte: today }, endDate: { gte: today } }, { status: "FROZEN" }] };
   }
 }
 
-export function subscriptionReport(tx: Tx, kind: ReportKind, today: Date) {
-  return tx.subscription.findMany({
+const signedAmount = (p: { kind: string; amountXof: number }) => (p.kind === "REFUND" ? -p.amountXof : p.amountXof);
+
+export async function subscriptionReport(tx: Tx, kind: ReportKind, today: Date) {
+  const rows = await tx.subscription.findMany({
     where: reportWhere(kind, today),
     orderBy: kind === "en-attente" ? { createdAt: "desc" } : { endDate: "asc" },
-    take: 200,
-    include: { member: { select: { id: true, code: true, firstName: true, lastName: true, phone: true } } },
+    take: kind === "impayes" ? 1000 : 200,
+    include: {
+      member: { select: { id: true, code: true, firstName: true, lastName: true, phone: true } },
+      payments: { where: { status: "SUCCEEDED" }, select: { kind: true, amountXof: true } },
+    },
   });
+  const withBalance = rows.map((s) => ({
+    ...s,
+    balanceXof: s.priceXof - s.payments.reduce((sum, p) => sum + signedAmount(p), 0),
+  }));
+  return kind === "impayes" ? withBalance.filter((s) => s.balanceXof > 0).slice(0, 200) : withBalance;
 }
 
 /** Indicateurs du tableau de bord — paiements CONFIRMÉS uniquement. */
@@ -423,16 +485,19 @@ export async function dashboardStats(tx: Tx, today: Date) {
     tx.subscription.count({ where: reportWhere("expires", today) }),
     tx.subscription.count({ where: reportWhere("en-attente", today) }),
     tx.member.count({ where: { status: { not: "ARCHIVED" } } }),
-    tx.payment.aggregate({ where: { status: "SUCCEEDED", paidAt: { gte: monthStart } }, _sum: { amountXof: true } }),
-    tx.payment.aggregate({ where: { status: "SUCCEEDED", paidAt: { gte: today } }, _sum: { amountXof: true } }),
+    tx.payment.groupBy({ by: ["kind"], where: { status: "SUCCEEDED", paidAt: { gte: monthStart } }, _sum: { amountXof: true } }),
+    tx.payment.groupBy({ by: ["kind"], where: { status: "SUCCEEDED", paidAt: { gte: today } }, _sum: { amountXof: true } }),
   ]);
+  // Chiffre d'affaires NET : encaissements − remboursements, transactions confirmées uniquement.
+  const net = (groups: { kind: string; _sum: { amountXof: number | null } }[]) =>
+    groups.reduce((sum, g) => sum + signedAmount({ kind: g.kind, amountXof: g._sum.amountXof ?? 0 }), 0);
   return {
     activeMembers: inProgress.length,
     members,
     toRenew,
     expired,
     pending,
-    revenueMonth: month._sum.amountXof ?? 0,
-    revenueToday: day._sum.amountXof ?? 0,
+    revenueMonth: net(month),
+    revenueToday: net(day),
   };
 }

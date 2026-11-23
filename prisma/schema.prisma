@@ -163,6 +163,15 @@ model Tenant {
   /// Compteur des codes adhérents (ADH-000001…), incrémenté en transaction
   memberSeq    Int       @default(0) @map("member_seq")
   suspendedReason String? @map("suspended_reason")
+  // Paramètres d'encaissement (permission billing.settings.manage)
+  /// Compteur des reçus (REC-000001…), incrémenté en transaction : aucun trou
+  receiptSeq          Int     @default(0) @map("receipt_seq")
+  /// Paiement en plusieurs fois autorisé ?
+  allowPartialPayment Boolean @default(false) @map("allow_partial_payment")
+  /// Part minimale (en %) à encaisser pour activer l'abonnement
+  minDepositPercent   Int     @default(100) @map("min_deposit_percent")
+  /// Mention libre en bas des reçus (RCCM, n° compte contribuable…)
+  receiptFooter       String? @map("receipt_footer")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -173,6 +182,7 @@ model Tenant {
   plans         MembershipPlan[]
   subscriptions Subscription[]
   payments      Payment[]
+  receipts      Receipt[]
 
   @@map("tenants")
 }
@@ -290,13 +300,25 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentKind {
+  PAYMENT
+  REFUND
+}
+
 /// Transaction. Jamais supprimée (le rôle applicatif n'a pas le droit DELETE).
 /// Seules les transactions SUCCEEDED comptent dans les statistiques.
+/// Un remboursement est une NOUVELLE ligne (kind REFUND, refundOfId) :
+/// chiffre d'affaires = encaissements − remboursements.
 model Payment {
   id             String        @id @default(uuid(7)) @db.Uuid
   tenantId       String        @map("tenant_id") @db.Uuid
   memberId       String        @map("member_id") @db.Uuid
   subscriptionId String?       @map("subscription_id") @db.Uuid
+  kind           PaymentKind   @default(PAYMENT)
+  refundOfId     String?       @map("refund_of_id") @db.Uuid
+  /// Motif obligatoire pour un remboursement
+  reason         String?
+  /// Toujours positif ; le sens est donné par `kind`
   amountXof      Int           @map("amount_xof")
   method         PaymentMethod
   /// "manual" (saisie à l'accueil) ; plus tard : agrégateur, orange, mtn, wave…
@@ -312,6 +334,9 @@ model Payment {
   tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   member       Member        @relation(fields: [memberId], references: [id], onDelete: Restrict)
   subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  refundOf     Payment?      @relation("Refunds", fields: [refundOfId], references: [id], onDelete: Restrict)
+  refunds      Payment[]     @relation("Refunds")
+  receipt      Receipt?
 
   /// Une même référence d'opérateur ne peut pas être enregistrée deux fois
   @@unique([tenantId, provider, providerRef])
@@ -417,4 +442,21 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([actorUserId, createdAt])
   @@map("audit_logs")
+}
+
+/// Reçu (ou avoir pour un remboursement). Numéro séquentiel par salle,
+/// sans trou. Immuable : le rôle applicatif ne peut ni le modifier ni le supprimer.
+model Receipt {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// REC-000001 (paiement) ou AV-000002 (avoir de remboursement), même séquence
+  number    String
+  paymentId String   @unique @map("payment_id") @db.Uuid
+  issuedAt  DateTime @default(now()) @map("issued_at") @db.Timestamptz(3)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, number])
+  @@map("receipts")
 }

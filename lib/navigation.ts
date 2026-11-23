@@ -40,7 +40,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
     { href: "/admin/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage" },
-    { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read", plannedSprint: 4 },
+    { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read" },
     { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 5 },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },
@@ -50,7 +50,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/reception/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
     { href: "/reception/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan", plannedSprint: 6 },
-    { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect", plannedSprint: 4 },
+    { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect" },
   ],
   coach: [
     { href: "/coach", label: "Mes cours", icon: "calendar" },
