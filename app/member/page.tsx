@@ -7,6 +7,8 @@ import { SUBSCRIPTION_STATUS_LABELS } from "@/lib/labels";
 import { requireSpace } from "@/lib/session";
 import { effectiveStatus, remainingDays, todayCalendar } from "@/modules/subscriptions/dates";
 import { getMemberSubscriptions } from "@/modules/subscriptions/subscriptions.service";
+import { unreadCount } from "@/modules/notifications/notifications.service";
+import Link from "next/link";
 import { statusVariant } from "@/components/subscriptions/subscription-panel";
 
 export const metadata: Metadata = { title: "Mon espace" };
@@ -21,7 +23,13 @@ export default async function MemberHome() {
       where: { userId: ctx.user.id },
       select: { id: true, code: true },
     });
-    return member ? { member, subscriptions: await getMemberSubscriptions(tx, member.id) } : null;
+    return member
+      ? {
+          member,
+          subscriptions: await getMemberSubscriptions(tx, member.id),
+          unread: await unreadCount(tx, ctx.user.id),
+        }
+      : null;
   });
 
   const subs = (data?.subscriptions ?? []).map((s) => ({ ...s, effective: effectiveStatus(s, today) }));
@@ -37,6 +45,15 @@ export default async function MemberHome() {
         title={`Bonjour ${ctx.user.name.split(" ")[0]}`}
         description={`${ctx.tenant.name}${data ? ` · n° adhérent ${data.member.code}` : ""}`}
       />
+
+      {data && data.unread > 0 && (
+        <Link
+          href="/member/notifications"
+          className="mb-4 block rounded-lg border border-brand/40 bg-brand/10 px-4 py-3 text-sm hover:bg-brand/15"
+        >
+          {data.unread} nouvelle(s) notification(s)
+        </Link>
+      )}
 
       <section className="mb-6 flex flex-col gap-3" aria-labelledby="mon-abonnement">
         <h2 id="mon-abonnement" className="text-sm font-medium">
@@ -112,7 +129,6 @@ export default async function MemberHome() {
 
       <UpcomingList
         items={[
-          { sprint: 8, label: "Réserver un cours" },
           { sprint: 11, label: "Renouveler en ligne depuis mon espace" },
         ]}
       />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import * as z from "zod";
+import { ParticipantsPanel } from "@/components/bookings/participants-panel";
 import { CancelSessionForm, RestoreSessionForm, SessionEditForm } from "@/components/classes/class-forms";
 import { PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -103,9 +104,13 @@ export default async function SessionPage({ params, searchParams }: PageProps<"/
               Voir le cours régulier ({DAY_NAMES[s.series.weekday]} {s.series.startTime})
             </Link>
           )}
-          <p className="rounded-xl border border-dashed p-4 text-xs text-muted-foreground">
-            Liste des participants et pointage des présences : Sprint 8 (réservations).
-          </p>
+          <ParticipantsPanel
+            tenantId={ctx.tenant.id}
+            userId={ctx.user.id}
+            session={s}
+            canBook={can(ctx.role, "bookings.manage")}
+            canMark={can(ctx.role, "attendance.write")}
+          />
         </aside>
       </div>
     </>

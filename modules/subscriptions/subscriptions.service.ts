@@ -5,6 +5,7 @@ import { BusinessError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import type { PaymentMethod, Prisma, SubscriptionStatus } from "@/lib/generated/prisma/client";
 import { checkbox } from "@/lib/validation";
+import { notifyMember } from "@/modules/notifications/notifications.service";
 import { formatXof } from "@/lib/format";
 import {
   activationThreshold,
@@ -247,6 +248,15 @@ async function activate(tx: Tx, actor: Actor, subscriptionId: string, reason: "p
     entityId: subscriptionId,
     after: { reason },
   });
+  const sub = await tx.subscription.findUniqueOrThrow({
+    where: { id: subscriptionId },
+    select: { memberId: true, planName: true, startDate: true, endDate: true, previousId: true },
+  });
+  await notifyMember(tx, actor.tenantId, sub.memberId, sub.previousId ? "SUBSCRIPTION_RENEWED" : "SUBSCRIPTION_ACTIVATED", {
+    planName: sub.planName,
+    startDate: formatDate(sub.startDate),
+    endDate: formatDate(sub.endDate),
+  });
 }
 
 /**
@@ -317,6 +327,10 @@ export async function recordManualPayment(
       providerRef: input.providerRef,
       receipt: receipt.number,
     },
+  });
+  await notifyMember(tx, actor.tenantId, sub.memberId, "PAYMENT_CONFIRMED", {
+    amount: formatXof(amount),
+    receiptNumber: receipt.number,
   });
   if (sub.status === "PENDING_PAYMENT") await activate(tx, actor, sub.id, "payment");
   return { payment, receipt, balanceAfter: balance - amount };

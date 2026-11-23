@@ -129,7 +129,7 @@ export async function PlanningView({
                       <p className="text-muted-foreground">
                         {s.coach.user.name}
                         {s.room && ` · ${s.room.name}`}
-                        {` · ${s.capacity} places`}
+                        {` · ${s.bookedCount}/${s.capacity} réservées`}
                       </p>
                       {cancelled && <p className="font-medium text-destructive">Annulée — {s.cancelReason}</p>}
                       {!cancelled && s.isException && <p className="text-muted-foreground">Modifiée</p>}

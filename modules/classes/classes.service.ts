@@ -6,6 +6,8 @@ import { formatDateTime } from "@/lib/format";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { TenantRole } from "@/lib/generated/prisma/enums";
 import { localParts, zonedToUtc } from "@/lib/timezone";
+import { cancelSessionBookings, promoteWaitlist } from "@/modules/bookings/bookings.service";
+import { lockRow } from "@/modules/payments/payments.service";
 import { checkbox, optionalText, requiredText } from "@/lib/validation";
 import {
   DAY_KEYS,
@@ -495,8 +497,14 @@ export async function updateSeries(
   if (!before) throw new BusinessError("Cours régulier introuvable.");
   await checkSlotRefs(tx, input, input);
   const timezone = await tenantTimezone(tx, actor.tenantId);
+  // Une séance déjà réservée n'est jamais déplacée à l'insu des inscrits :
+  // elle est conservée telle quelle (devenue exception) au lieu d'être recréée.
   const { count: removed } = await tx.classSession.deleteMany({
+    where: { seriesId, isException: false, startsAt: { gte: now }, bookings: { none: {} } },
+  });
+  await tx.classSession.updateMany({
     where: { seriesId, isException: false, startsAt: { gte: now } },
+    data: { isException: true },
   });
   const series = await tx.classSeries.update({ where: { id: seriesId }, data: seriesData(input) });
   const from = input.startsOn > today ? input.startsOn : today;
@@ -527,12 +535,19 @@ export async function stopSeries(tx: Tx, actor: Actor, seriesId: string, lastDay
   const timezone = await tenantTimezone(tx, actor.tenantId);
   const after = zonedToUtc(addDaysIso(lastDay, 1), "00:00", timezone);
   const { count: removed } = await tx.classSession.deleteMany({
-    where: { seriesId, isException: false, startsAt: { gte: after } },
+    where: { seriesId, isException: false, startsAt: { gte: after }, bookings: { none: {} } },
   });
-  const { count: cancelled } = await tx.classSession.updateMany({
-    where: { seriesId, isException: true, status: "SCHEDULED", startsAt: { gte: after } },
-    data: { status: "CANCELLED", cancelReason: "Cours régulier arrêté" },
+  // Séances modifiées une par une, ou déjà réservées : annulées (inscrits prévenus).
+  const remaining = await tx.classSession.findMany({
+    where: { seriesId, status: "SCHEDULED", startsAt: { gte: after } },
+    select: { id: true },
   });
+  const reason = "Cours régulier arrêté";
+  for (const s of remaining) {
+    await tx.classSession.update({ where: { id: s.id }, data: { status: "CANCELLED", cancelReason: reason } });
+    await cancelSessionBookings(tx, actor.tenantId, s.id, reason);
+  }
+  const cancelled = remaining.length;
   await tx.classSeries.update({ where: { id: seriesId }, data: { endsOn: dateOnly(lastDay) } });
   await audit(tx, {
     tenantId: actor.tenantId,
@@ -683,9 +698,13 @@ export async function createOneOffSession(tx: Tx, actor: Actor, input: OneOffInp
 
 /** Modifier UNE séance (remplacement de coach, décalage…) : elle devient une exception. */
 export async function updateSession(tx: Tx, actor: Actor, sessionId: string, input: SessionUpdateInput) {
+  await lockRow(tx, "class_sessions", sessionId);
   const before = await tx.classSession.findUnique({ where: { id: sessionId } });
   if (!before) throw new BusinessError("Séance introuvable.");
   if (before.status === "CANCELLED") throw new BusinessError("Rétablissez la séance avant de la modifier.");
+  if (input.capacity < before.bookedCount) {
+    throw new BusinessError(`${before.bookedCount} places sont déjà réservées : capacité minimum ${before.bookedCount}.`, "capacity");
+  }
   await checkSlotRefs(tx, input, {
     weekday: weekdayOf(input.date),
     startTime: input.startTime,
@@ -699,6 +718,8 @@ export async function updateSession(tx: Tx, actor: Actor, sessionId: string, inp
       data: { ...slot, capacity: input.capacity, notes: input.notes, isException: before.seriesId !== null },
     })
     .catch(asOverlapError);
+  // Places en plus : la liste d'attente en profite aussitôt.
+  if (input.capacity > before.capacity) await promoteWaitlist(tx, actor.tenantId, sessionId);
   await audit(tx, {
     tenantId: actor.tenantId,
     actorUserId: actor.userId,
@@ -719,13 +740,15 @@ export async function cancelSession(tx: Tx, actor: Actor, sessionId: string, rea
     where: { id: sessionId },
     data: { status: "CANCELLED", cancelReason: reason, isException: session.seriesId !== null },
   });
+  // Les réservations sont libérées et les inscrits prévenus (application + e-mail).
+  const released = await cancelSessionBookings(tx, actor.tenantId, sessionId, reason);
   await audit(tx, {
     tenantId: actor.tenantId,
     actorUserId: actor.userId,
     action: "class_session.cancel",
     entityType: "class_session",
     entityId: sessionId,
-    after: { reason },
+    after: { reason, released },
   });
 }
 

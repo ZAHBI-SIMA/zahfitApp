@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bell,
   Building2,
   CalendarDays,
   ChartColumn,
@@ -31,6 +32,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   settings: Settings,
   shield: ShieldCheck,
   user: User,
+  bell: Bell,
 };
 
 export function NavLinks({ items }: { items: NavItem[] }) {

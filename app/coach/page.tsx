@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader, UpcomingList } from "@/components/shell/page-header";
+import { PageHeader } from "@/components/shell/page-header";
 import { withTenant } from "@/lib/db";
 import { requireSpace } from "@/lib/session";
 import { localParts } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
+import { attendanceStats } from "@/modules/bookings/bookings.service";
 import { listSessions, tenantToday } from "@/modules/classes/classes.service";
 import { DAY_NAMES } from "@/modules/classes/schedule";
 
@@ -27,7 +28,8 @@ export default async function CoachHome() {
     const sessions = await listSessions(tx, now, new Date(now.getTime() + UPCOMING_DAYS * 86_400_000), {
       coachId: me.id,
     });
-    return { sessions, timezone, hasAvailability: me.availability !== null };
+    const stats = await attendanceStats(tx, new Date(now.getTime() - 30 * 86_400_000), now, { coachId: me.id });
+    return { sessions, timezone, hasAvailability: me.availability !== null, stats };
   });
 
   const timezone = data?.timezone ?? "Africa/Abidjan";
@@ -56,6 +58,13 @@ export default async function CoachHome() {
         </p>
       )}
 
+      {data && data.stats.sessions > 0 && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          30 derniers jours : {data.stats.sessions} séance(s), remplissage {data.stats.fillRate ?? "—"} %, présence{" "}
+          {data.stats.attendanceRate === null ? "non pointée" : `${data.stats.attendanceRate} %`}.
+        </p>
+      )}
+
       <section className="mb-6 flex flex-col gap-3" aria-labelledby="prochains">
         <h2 id="prochains" className="text-sm font-medium">
           Les {UPCOMING_DAYS} prochains jours
@@ -80,11 +89,14 @@ export default async function CoachHome() {
                       )}
                       style={{ borderLeftColor: s.classType.color }}
                     >
-                      <span className={cn("font-medium", cancelled && "line-through")}>
+                      <Link
+                        href={`/coach/seance/${s.id}`}
+                        className={cn("font-medium hover:underline", cancelled && "line-through")}
+                      >
                         {time(s.startsAt)}–{time(s.endsAt)} · {s.classType.name}
-                      </span>
+                      </Link>
                       <span className="text-muted-foreground">
-                        {s.room?.name ?? "Sans salle"} · {s.capacity} places
+                        {s.room?.name ?? "Sans salle"} · {s.bookedCount}/{s.capacity} inscrits
                         {cancelled && <span className="ml-2 text-destructive">Annulée — {s.cancelReason}</span>}
                       </span>
                     </li>
@@ -96,7 +108,7 @@ export default async function CoachHome() {
         )}
       </section>
 
-      <UpcomingList items={[{ sprint: 8, label: "Listes de participants et pointage des présences" }]} />
+      <p className="text-xs text-muted-foreground">Ouvrez une séance pour voir ses inscrits et pointer les présences.</p>
     </>
   );
 }

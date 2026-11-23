@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   "access.scan", // contrôle d'accès QR
   "classes.read",
   "classes.manage", // créer / modifier des cours
+  "bookings.manage", // réserver / annuler pour un adhérent (accueil)
   "attendance.write", // pointer les présences
   // Espace adhérent (ses propres données uniquement)
   "self.profile",
@@ -89,6 +90,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "access.scan",
     "classes.read",
     "classes.manage",
+    "bookings.manage",
     "attendance.write",
   ],
 
@@ -106,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "payments.collect",
     "access.scan",
     "classes.read",
+    "bookings.manage",
   ],
 
   /**

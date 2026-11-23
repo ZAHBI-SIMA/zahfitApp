@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { TenantSettingsForm } from "@/components/tenants/tenant-forms";
 import { BillingSettingsForm } from "@/components/payments/payment-forms";
 import { AccessSettingsForm } from "@/components/access/access-forms";
+import { BookingSettingsForm } from "@/components/bookings/booking-forms";
 import { withTenant } from "@/lib/db";
 import { can } from "@/lib/rbac/permissions";
 import { requireSpace } from "@/lib/session";
@@ -43,6 +44,16 @@ export default async function SettingsPage() {
             : "Tant que les horaires d'ouverture ne sont pas enregistrés, l'entrée n'est pas limitée par l'heure."}
         </p>
         <AccessSettingsForm antiPassbackMinutes={tenant.antiPassbackMinutes} />
+      </section>
+
+      <section className="mt-6 max-w-4xl rounded-xl border bg-card p-5" aria-labelledby="reservations">
+        <h2 id="reservations" className="mb-1 text-sm font-medium">
+          Réservations des cours
+        </h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Quand les adhérents peuvent réserver, et jusqu&apos;à quand ils peuvent annuler eux-mêmes.
+        </p>
+        <BookingSettingsForm openDays={tenant.bookingOpenDays} cancelHours={tenant.bookingCancelHours} />
       </section>
 
       {can(ctx.role, "billing.settings.manage") && (

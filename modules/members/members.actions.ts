@@ -13,6 +13,7 @@ import {
 } from "@/modules/members/members.import";
 import { memberInputSchema, parseBasePath } from "@/modules/members/members.schema";
 import { createMember, setMemberArchived, updateMember } from "@/modules/members/members.service";
+import { flushEmailsQuietly, notifyMember } from "@/modules/notifications/notifications.service";
 
 export async function createMemberAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const basePath = parseBasePath(formData.get("basePath"));
@@ -21,10 +22,15 @@ export async function createMemberAction(_prev: FormState, formData: FormData): 
     const ctx = await requireActionContext("members.write");
     const parsed = parseForm(memberInputSchema, formData);
     if (parsed.state) return parsed.state;
-    const member = await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
-      createMember(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, parsed.data),
-    );
+    const member = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {
+      const created = await createMember(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, parsed.data);
+      // Confirmation d'inscription (e-mail si l'adresse est connue). Branchée ici et
+      // non dans le service : un import CSV ne doit pas envoyer des centaines d'e-mails.
+      await notifyMember(tx, ctx.tenant.id, created.id, "MEMBER_WELCOME", { memberCode: created.code });
+      return created;
+    });
     memberId = member.id;
+    await flushEmailsQuietly(ctx.tenant.id);
   } catch (error) {
     return toFormState(error);
   }

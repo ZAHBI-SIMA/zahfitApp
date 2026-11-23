@@ -19,7 +19,7 @@ export default async function ReceptionPlanningPage({ searchParams }: PageProps<
         userId={ctx.user.id}
         basePath="/reception/planning"
         searchParams={await searchParams}
-        detailBase={can(ctx.role, "classes.manage") ? "/admin/planning/seance" : null}
+        detailBase="/reception/planning/seance"
       />
     </>
   );

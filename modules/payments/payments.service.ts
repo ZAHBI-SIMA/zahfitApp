@@ -38,11 +38,16 @@ export async function netPaid(tx: Tx, subscriptionId: string, until?: Date): Pro
 }
 
 /** Verrouille une ligne jusqu'à la fin de la transaction (encaissements simultanés). */
-export async function lockRow(tx: Tx, table: "payments" | "subscriptions" | "members", id: string) {
+export async function lockRow(
+  tx: Tx,
+  table: "payments" | "subscriptions" | "members" | "class_sessions",
+  id: string,
+) {
   // Noms de table en dur (jamais interpolés) : aucune injection possible.
   if (table === "payments") await tx.$executeRaw`SELECT 1 FROM payments WHERE id = ${id}::uuid FOR UPDATE`;
   else if (table === "subscriptions") await tx.$executeRaw`SELECT 1 FROM subscriptions WHERE id = ${id}::uuid FOR UPDATE`;
-  else await tx.$executeRaw`SELECT 1 FROM members WHERE id = ${id}::uuid FOR UPDATE`;
+  else if (table === "members") await tx.$executeRaw`SELECT 1 FROM members WHERE id = ${id}::uuid FOR UPDATE`;
+  else await tx.$executeRaw`SELECT 1 FROM class_sessions WHERE id = ${id}::uuid FOR UPDATE`;
 }
 
 // --- Reçus -------------------------------------------------------------------

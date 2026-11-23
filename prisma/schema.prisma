@@ -37,6 +37,7 @@ model User {
   twoFactors  TwoFactor[]
   memberships TenantMembership[]
   memberProfiles Member[]
+  notifications  Notification[]
 
   @@map("users")
 }
@@ -174,6 +175,9 @@ model Tenant {
   receiptFooter       String? @map("receipt_footer")
   /// Anti-passback : délai minimal (minutes) entre deux entrées d'un même adhérent ; 0 = désactivé
   antiPassbackMinutes Int     @default(60) @map("anti_passback_minutes")
+  /// Réservations : ouverture N jours avant la séance, annulation libre jusqu'à N heures avant
+  bookingOpenDays     Int     @default(7) @map("booking_open_days")
+  bookingCancelHours  Int     @default(2) @map("booking_cancel_hours")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -190,6 +194,8 @@ model Tenant {
   classTypes    ClassType[]
   classSeries   ClassSeries[]
   classSessions ClassSession[]
+  bookings      Booking[]
+  notifications Notification[]
 
   @@map("tenants")
 }
@@ -417,6 +423,8 @@ model Member {
   subscriptions Subscription[]
   payments      Payment[]
   accessLogs    AccessLog[]
+  bookings      Booking[]
+  notifications Notification[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, badgeHash])
@@ -660,6 +668,8 @@ model ClassSession {
   startsAt       DateTime           @map("starts_at") @db.Timestamptz(3)
   endsAt         DateTime           @map("ends_at") @db.Timestamptz(3)
   capacity       Int
+  /// Réservations CONFIRMÉES — tenu par un déclencheur, plafonné par CHECK (≤ capacity)
+  bookedCount    Int                @default(0) @map("booked_count")
   status         ClassSessionStatus @default(SCHEDULED)
   cancelReason   String?            @map("cancel_reason")
   /// Modifiée individuellement : n'est plus réécrite par la série
@@ -673,9 +683,106 @@ model ClassSession {
   classType ClassType        @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
   coach     TenantMembership @relation(fields: [coachId], references: [id], onDelete: Restrict)
   room      Room?            @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  bookings  Booking[]
 
   @@unique([seriesId, occurrenceDate])
   @@index([tenantId, startsAt])
   @@index([coachId, startsAt])
   @@map("class_sessions")
+}
+
+// --- Réservations et notifications (Sprint 8) ------------------------------
+
+enum BookingStatus {
+  CONFIRMED
+  WAITLISTED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+/// Réservation d'une séance. Une seule réservation active par adhérent et
+/// par séance (index unique partiel en SQL).
+model Booking {
+  id                   String            @id @default(uuid(7)) @db.Uuid
+  tenantId             String            @map("tenant_id") @db.Uuid
+  sessionId            String            @map("session_id") @db.Uuid
+  memberId             String            @map("member_id") @db.Uuid
+  status               BookingStatus
+  attendance           AttendanceStatus?
+  attendanceMarkedAt   DateTime?         @map("attendance_marked_at") @db.Timestamptz(3)
+  attendanceMarkedById String?           @map("attendance_marked_by_id")
+  /// Qui a réservé : l'adhérent lui-même ou l'accueil
+  bookedById          String?           @map("booked_by_id")
+  promotedAt          DateTime?         @map("promoted_at") @db.Timestamptz(3)
+  cancelledAt         DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  cancelReason        String?           @map("cancel_reason")
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  member  Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId, status, createdAt])
+  @@index([tenantId, memberId, status])
+  @@map("bookings")
+}
+
+enum NotificationType {
+  MEMBER_WELCOME
+  BOOKING_CONFIRMED
+  BOOKING_WAITLISTED
+  WAITLIST_PROMOTED
+  BOOKING_CANCELLED
+  SESSION_CANCELLED
+  SUBSCRIPTION_EXPIRING
+  SUBSCRIPTION_EXPIRED
+  SUBSCRIPTION_ACTIVATED
+  SUBSCRIPTION_RENEWED
+  PAYMENT_CONFIRMED
+}
+
+enum EmailStatus {
+  NONE
+  PENDING
+  SENT
+  FAILED
+}
+
+/// Notification (dans l'application) + boîte d'envoi des e-mails : écrite
+/// dans la transaction de l'événement, envoyée APRÈS validation.
+model Notification {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  /// Destinataire dans l'application (compte de connexion) ; null = e-mail seul
+  userId        String?          @map("user_id")
+  memberId      String?          @map("member_id") @db.Uuid
+  type          NotificationType
+  title         String
+  body          String
+  link          String?
+  /// Clé anti-doublon (ex. rappel J-7 d'un abonnement) ; unique par salle
+  dedupeKey     String?          @map("dedupe_key")
+  readAt        DateTime?        @map("read_at") @db.Timestamptz(3)
+  emailStatus   EmailStatus      @default(NONE) @map("email_status")
+  /// Adresse effacée après l'envoi (minimisation des données)
+  emailTo       String?          @map("email_to")
+  emailSubject  String?          @map("email_subject")
+  emailText     String?          @map("email_text")
+  emailAttempts Int              @default(0) @map("email_attempts")
+  emailSentAt   DateTime?        @map("email_sent_at") @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+  @@index([emailStatus, createdAt])
+  @@map("notifications")
 }

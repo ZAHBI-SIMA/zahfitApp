@@ -12,7 +12,8 @@ export type IconName =
   | "chart"
   | "settings"
   | "shield"
-  | "user";
+  | "user"
+  | "bell";
 
 export type NavItem = {
   href: string;
@@ -59,12 +60,12 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/coach", label: "Mes cours", icon: "calendar" },
     { href: "/coach/planning", label: "Planning", icon: "calendar" },
     { href: "/coach/profil", label: "Mon profil", icon: "user" },
-    { href: "/coach/presences", label: "Présences", icon: "users", permission: "attendance.write", plannedSprint: 8 },
   ],
   member: [
     { href: "/member", label: "Mon abonnement", icon: "card" },
     { href: "/member/qr", label: "Mon QR Code", icon: "qr" },
-    { href: "/member/reservations", label: "Réservations", icon: "calendar", plannedSprint: 8 },
+    { href: "/member/reservations", label: "Réservations", icon: "calendar" },
+    { href: "/member/notifications", label: "Notifications", icon: "bell" },
     { href: "/member/profil", label: "Mon profil", icon: "user", plannedSprint: 11 },
   ],
 };

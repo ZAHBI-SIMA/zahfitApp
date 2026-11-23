@@ -97,6 +97,22 @@ Le seed crée un planning de démonstration : 3 types de cours (Cross-training, 
 
 Les séances sont générées 8 semaines à l'avance. En production, appelez chaque jour `GET /api/cron/planning` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` pour prolonger le planning.
 
+## Réservations, présences et notifications
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| « Réservations » → « Réserver » sur une séance | adherent | La séance passe dans « Mes réservations », une place de moins |
+| « Notifications » | adherent | « Réservation confirmée », puis « Tout marquer comme lu » |
+| Annuler sa réservation moins de 2 h avant le cours | adherent | Refusé : « prévenez l'accueil » |
+| Planning → une séance → « Inscrire un adhérent » avec `ADH-000005` | accueil | Inscrit ; e-mail de confirmation dans la console du serveur |
+| Inscrire un adhérent déjà inscrit | accueil | « Déjà inscrit(e) à cette séance » |
+| Séance pleine : inscrire un adhérent de plus | accueil | Mis en liste d'attente ; confirmé automatiquement si une place se libère |
+| « Mes cours » → une séance → Présent / Absent (30 min avant le cours au plus tôt) | coach | Présence enregistrée, taux de présence sur 30 jours |
+| Annuler une séance qui a des inscrits | admin, gerant | Réservations libérées, inscrits prévenus |
+| Paramètres → Réservations des cours | admin, gerant | Fenêtre d'ouverture et délai d'annulation réglables |
+
+En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
+
 ## Inscription et paiement en ligne (sans compte)
 
 Le prestataire est **simulé** (`PAYMENT_PROVIDER="sandbox"`) : aucun argent réel ne circule, et le simulateur est désactivé en production.
