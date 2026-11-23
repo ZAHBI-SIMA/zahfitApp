@@ -210,6 +210,11 @@ export async function assignSubscription(
       priceXof: plan.priceXof,
       durationValue: plan.durationValue,
       durationUnit: plan.durationUnit,
+      // Restrictions figées à la vente, comme le prix (contrôle d'accès).
+      allowedDays: plan.allowedDays,
+      accessFrom: plan.accessFrom,
+      accessUntil: plan.accessUntil,
+      maxEntries: plan.maxEntries,
       startDate,
       endDate,
       previousId: previous?.id ?? null,

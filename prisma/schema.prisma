@@ -172,6 +172,8 @@ model Tenant {
   minDepositPercent   Int     @default(100) @map("min_deposit_percent")
   /// Mention libre en bas des reçus (RCCM, n° compte contribuable…)
   receiptFooter       String? @map("receipt_footer")
+  /// Anti-passback : délai minimal (minutes) entre deux entrées d'un même adhérent ; 0 = désactivé
+  antiPassbackMinutes Int     @default(60) @map("anti_passback_minutes")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -183,6 +185,7 @@ model Tenant {
   subscriptions Subscription[]
   payments      Payment[]
   receipts      Receipt[]
+  accessLogs    AccessLog[]
 
   @@map("tenants")
 }
@@ -261,6 +264,12 @@ model Subscription {
   frozenSince   DateTime?          @map("frozen_since") @db.Date
   /// Jours de gel déjà consommés (plafonnés par maxFreezeDays)
   frozenDays    Int                @default(0) @map("frozen_days")
+  // Restrictions FIGÉES à la vente (comme le prix) : modifier la formule
+  // ne change pas les droits d'un abonnement déjà vendu.
+  allowedDays   Int[]              @default([]) @map("allowed_days")
+  accessFrom    String?            @map("access_from")
+  accessUntil   String?            @map("access_until")
+  maxEntries    Int?               @map("max_entries")
   previousId    String?            @map("previous_id") @db.Uuid
   activatedAt   DateTime?          @map("activated_at") @db.Timestamptz(3)
   cancelledAt   DateTime?          @map("cancelled_at") @db.Timestamptz(3)
@@ -275,6 +284,7 @@ model Subscription {
   previous Subscription?  @relation("Renewal", fields: [previousId], references: [id], onDelete: Restrict)
   renewals Subscription[] @relation("Renewal")
   payments Payment[]
+  accessLogs AccessLog[]
 
   @@index([tenantId, memberId, startDate])
   @@index([tenantId, status, endDate])
@@ -377,6 +387,11 @@ model Member {
   email     String?
   birthDate DateTime?    @map("birth_date") @db.Date
   photoUrl  String?      @map("photo_url")
+  /// Badge physique : seule l'empreinte SHA-256 du code est stockée
+  badgeHash     String?   @map("badge_hash")
+  /// 4 derniers caractères du code, pour reconnaître le badge à l'écran
+  badgeHint     String?   @map("badge_hint")
+  badgeIssuedAt DateTime? @map("badge_issued_at") @db.Timestamptz(3)
   status    MemberStatus @default(ACTIVE)
   source    MemberSource @default(RECEPTION)
   /// Compte de connexion à l'espace adhérent (optionnel)
@@ -397,8 +412,10 @@ model Member {
   user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   subscriptions Subscription[]
   payments      Payment[]
+  accessLogs    AccessLog[]
 
   @@unique([tenantId, code])
+  @@unique([tenantId, badgeHash])
   @@unique([tenantId, phone])
   @@unique([tenantId, userId])
   @@index([tenantId, status, lastName])
@@ -481,4 +498,59 @@ model PaymentWebhookEvent {
   @@unique([provider, eventId])
   @@index([provider, providerRef])
   @@map("payment_webhook_events")
+}
+
+// --- Contrôle d'accès (Sprint 6) --------------------------------------------
+
+enum AccessMethod {
+  QR    // QR dynamique de l'application adhérent
+  BADGE // badge physique (code statique révocable)
+}
+
+enum AccessReason {
+  GRANTED
+  INVALID_CODE
+  EXPIRED_CODE
+  UNKNOWN_BADGE
+  MEMBER_ARCHIVED
+  MEMBER_SUSPENDED
+  NO_SUBSCRIPTION
+  SUBSCRIPTION_EXPIRED
+  NOT_STARTED
+  PAYMENT_PENDING
+  SUBSCRIPTION_FROZEN
+  SUBSCRIPTION_CANCELLED
+  DAY_NOT_ALLOWED
+  OUTSIDE_HOURS
+  GYM_CLOSED
+  QUOTA_REACHED
+  PASSBACK
+}
+
+/// Journal des passages, autorisés OU refusés. Pièce de contrôle : ajout seul.
+model AccessLog {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  memberId       String?      @map("member_id") @db.Uuid
+  subscriptionId String?      @map("subscription_id") @db.Uuid
+  method         AccessMethod
+  granted        Boolean
+  reason         AccessReason
+  scannedById    String?      @map("scanned_by_id")
+  /// Décision prise hors ligne par l'appareil, synchronisée ensuite
+  offline        Boolean      @default(false)
+  /// Identifiant généré par l'appareil : rend la synchronisation idempotente
+  clientEventId  String?      @map("client_event_id") @db.Uuid
+  occurredAt     DateTime     @map("occurred_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  member       Member?       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clientEventId])
+  @@index([tenantId, occurredAt])
+  @@index([tenantId, memberId, occurredAt])
+  @@index([subscriptionId, granted])
+  @@map("access_logs")
 }

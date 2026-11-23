@@ -1,4 +1,6 @@
 import type {
+  AccessMethod,
+  AccessReason,
   DurationUnit,
   MemberSource,
   MemberStatus,
@@ -72,4 +74,30 @@ export const MEMBER_SOURCE_LABELS: Record<MemberSource, string> = {
 export const TENANT_STATUS_LABELS: Record<TenantStatus, string> = {
   ACTIVE: "Active",
   SUSPENDED: "Suspendue",
+};
+
+/** Motifs affichés à l'accueil après un scan : courts, lisibles de loin. */
+export const ACCESS_REASON_LABELS: Record<AccessReason, string> = {
+  GRANTED: "Accès autorisé",
+  INVALID_CODE: "Code non reconnu",
+  EXPIRED_CODE: "QR Code expiré : faites rouvrir le QR",
+  UNKNOWN_BADGE: "Badge inconnu ou révoqué",
+  MEMBER_ARCHIVED: "Adhérent archivé",
+  MEMBER_SUSPENDED: "Adhérent suspendu",
+  NO_SUBSCRIPTION: "Aucun abonnement",
+  SUBSCRIPTION_EXPIRED: "Abonnement expiré",
+  NOT_STARTED: "Abonnement pas encore commencé",
+  PAYMENT_PENDING: "Paiement en attente",
+  SUBSCRIPTION_FROZEN: "Abonnement suspendu (gel)",
+  SUBSCRIPTION_CANCELLED: "Abonnement annulé",
+  DAY_NOT_ALLOWED: "Jour non inclus dans la formule",
+  OUTSIDE_HOURS: "Hors du créneau autorisé",
+  GYM_CLOSED: "Salle fermée aujourd'hui",
+  QUOTA_REACHED: "Quota d'entrées atteint",
+  PASSBACK: "Déjà entré récemment (anti-passback)",
+};
+
+export const ACCESS_METHOD_LABELS: Record<AccessMethod, string> = {
+  QR: "QR Code",
+  BADGE: "Badge",
 };

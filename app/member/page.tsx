@@ -44,7 +44,7 @@ export default async function MemberHome() {
         </h2>
         {current.length === 0 ? (
           <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-            Aucun abonnement en cours. Passez à l&apos;accueil pour renouveler (paiement en ligne bientôt disponible).
+            Aucun abonnement en cours. Passez à l&apos;accueil pour renouveler.
           </div>
         ) : (
           current.map((s) => (
@@ -112,9 +112,8 @@ export default async function MemberHome() {
 
       <UpcomingList
         items={[
-          { sprint: 5, label: "Payer et renouveler en ligne" },
-          { sprint: 6, label: "Présenter mon QR Code à l'entrée" },
           { sprint: 8, label: "Réserver un cours" },
+          { sprint: 11, label: "Renouveler en ligne depuis mon espace" },
         ]}
       />
     </>

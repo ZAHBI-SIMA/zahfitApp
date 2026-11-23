@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "AccessReason" ADD VALUE 'MEMBER_SUSPENDED';
+

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { TenantSettingsForm } from "@/components/tenants/tenant-forms";
 import { BillingSettingsForm } from "@/components/payments/payment-forms";
+import { AccessSettingsForm } from "@/components/access/access-forms";
 import { withTenant } from "@/lib/db";
 import { can } from "@/lib/rbac/permissions";
 import { requireSpace } from "@/lib/session";
@@ -31,6 +32,18 @@ export default async function SettingsPage() {
           socials={readSocials(tenant.socials)}
         />
       </div>
+
+      <section className="mt-6 max-w-4xl rounded-xl border bg-card p-5" aria-labelledby="controle-acces">
+        <h2 id="controle-acces" className="mb-1 text-sm font-medium">
+          Contrôle d&apos;accès
+        </h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          {tenant.openingHours
+            ? "Les horaires d'ouverture enregistrés ci-dessus sont appliqués à l'entrée."
+            : "Tant que les horaires d'ouverture ne sont pas enregistrés, l'entrée n'est pas limitée par l'heure."}
+        </p>
+        <AccessSettingsForm antiPassbackMinutes={tenant.antiPassbackMinutes} />
+      </section>
 
       {can(ctx.role, "billing.settings.manage") && (
         <section className="mt-6 max-w-4xl rounded-xl border bg-card p-5" aria-labelledby="encaissements">

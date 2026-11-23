@@ -41,7 +41,8 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage" },
     { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read" },
-    { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 5 },
+    { href: "/admin/acces", label: "Fréquentation", icon: "qr", permission: "access.scan" },
+    { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 11 },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },
   ],
@@ -49,7 +50,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/reception", label: "Accueil", icon: "dashboard" },
     { href: "/reception/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
     { href: "/reception/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
-    { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan", plannedSprint: 6 },
+    { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan" },
     { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect" },
   ],
   coach: [
@@ -58,8 +59,8 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
   ],
   member: [
     { href: "/member", label: "Mon abonnement", icon: "card" },
-    { href: "/member/qr", label: "Mon QR Code", icon: "qr", plannedSprint: 6 },
+    { href: "/member/qr", label: "Mon QR Code", icon: "qr" },
     { href: "/member/reservations", label: "Réservations", icon: "calendar", plannedSprint: 8 },
-    { href: "/member/profil", label: "Mon profil", icon: "user", plannedSprint: 5 },
+    { href: "/member/profil", label: "Mon profil", icon: "user", plannedSprint: 11 },
   ],
 };

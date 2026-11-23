@@ -60,6 +60,23 @@ UPDATE users SET two_factor_enabled = false WHERE email = 'admin@pilote.zahfit.l
 | Rembourser une partie d'un paiement | gerant | Avoir AV-… émis, chiffre d'affaires du jour diminué |
 | Journal des paiements + « Exporter » | compta | Fichier CSV qui s'ouvre dans Excel |
 
+## Contrôle d'accès (QR Code et badge)
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Ouvrir « Mon QR Code » | adherent | QR renouvelé toutes les 30 s, formule en cours affichée |
+| Fiche de Kevin → « Émettre un badge », puis « Imprimer le badge » | accueil | Code `ZB-…` affiché une seule fois, carte imprimable |
+| « Contrôle d'accès » → taper le code du badge + Entrée (comme une douchette) | accueil | Vert « ACCÈS AUTORISÉ », photo ou initiales, formule, fin |
+| Rescanner aussitôt | accueil | Rouge « Déjà entré il y a moins de 60 min » (anti-passback) |
+| Taper n'importe quoi | accueil | Rouge « Code non reconnu », passage tout de même journalisé |
+| « Scanner avec la caméra » puis présenter le QR du téléphone de l'adhérent | accueil | Même résultat qu'avec la douchette (autoriser la caméra) |
+| Renouveler puis révoquer le badge | accueil | L'ancien code est refusé (« Badge inconnu ou révoqué ») |
+| Couper le Wi-Fi de l'appareil de l'accueil et scanner | accueil | Décision prise sur l'appareil, « 1 passage à synchroniser » ; envoyé au retour du réseau |
+| Paramètres → Contrôle d'accès : anti-passback à 0 | admin | Deux scans rapprochés sont acceptés |
+| « Fréquentation » | admin, gerant | Entrées par jour et par heure, motifs de refus, journal filtrable |
+
+Sur l'appareil de l'accueil, l'écran de scan garde en cache les droits des adhérents (sans téléphone ni e-mail) pour fonctionner sans réseau. Utilisez un appareil réservé à l'accueil.
+
 ## Inscription et paiement en ligne (sans compte)
 
 Le prestataire est **simulé** (`PAYMENT_PROVIDER="sandbox"`) : aucun argent réel ne circule, et le simulateur est désactivé en production.

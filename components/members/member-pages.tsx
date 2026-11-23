@@ -24,6 +24,9 @@ import {
 import { ArchiveMemberButton } from "@/components/members/archive-button";
 import { MemberForm } from "@/components/members/member-form";
 import { SubscriptionPanel } from "@/components/subscriptions/subscription-panel";
+import { BadgePanel } from "@/components/access/access-forms";
+import { ACCESS_METHOD_LABELS, ACCESS_REASON_LABELS } from "@/lib/labels";
+import { memberAccessHistory } from "@/modules/access/access.service";
 
 /**
  * Pages adhérents partagées par l'Administration et la Réception : même
@@ -210,7 +213,11 @@ export async function MemberDetail({
 
   const data = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {
     const member = await getMember(tx, id);
-    return { member, history: member && showHistory ? await getMemberHistory(tx, id) : [] };
+    return {
+      member,
+      history: member && showHistory ? await getMemberHistory(tx, id) : [],
+      entries: member ? await memberAccessHistory(tx, id) : [],
+    };
   });
   // Un identifiant d'une AUTRE salle renvoie null grâce au RLS : simple 404.
   if (!data.member) notFound();
@@ -260,13 +267,44 @@ export async function MemberDetail({
             </dl>
           </div>
 
-          <div className="rounded-xl border bg-card p-4 text-sm">
-            <h2 className="mb-2 font-medium">Bientôt sur cette fiche</h2>
-            <ul className="space-y-1 text-muted-foreground">
-              <li>Reçus PDF et paiement partiel — Sprint 4</li>
-              <li>Entrées (QR Code) — Sprint 6</li>
-            </ul>
-          </div>
+          <section className="rounded-xl border bg-card p-4" aria-labelledby="badge">
+            <h2 id="badge" className="mb-2 text-sm font-medium">
+              Badge d&apos;accès
+            </h2>
+            <BadgePanel
+              memberId={m.id}
+              badge={m.badgeHint ? { hint: m.badgeHint, issuedAt: m.badgeIssuedAt } : null}
+              holder={{ name: `${m.firstName} ${m.lastName}`, code: m.code, tenant: ctx.tenant.name }}
+              canWrite={!archived && can(ctx.role, "members.write")}
+            />
+          </section>
+
+          <section className="rounded-xl border bg-card p-4 text-sm" aria-labelledby="passages">
+            <h2 id="passages" className="mb-2 font-medium">
+              Derniers passages
+            </h2>
+            {data.entries.length === 0 ? (
+              <p className="text-muted-foreground">Aucun passage enregistré.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {data.entries.map((e) => (
+                  <li key={e.id} className="flex justify-between gap-2">
+                    <span>
+                      <span
+                        aria-hidden
+                        className={cn("mr-1.5 inline-block size-2 rounded-full", e.granted ? "bg-emerald-500" : "bg-red-500")}
+                      />
+                      {e.granted ? "Entrée" : ACCESS_REASON_LABELS[e.reason]}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatDateTime(e.occurredAt)} · {ACCESS_METHOD_LABELS[e.method]}
+                      {e.offline && " · hors ligne"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {can(ctx.role, "members.archive") && <ArchiveMemberButton memberId={m.id} archived={archived} />}
         </aside>

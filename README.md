@@ -13,6 +13,7 @@ Adhérents, abonnements, paiements Mobile Money, contrôle d'accès par QR Code,
 | 3 | Formules, cycle de vie des abonnements (attribution, renouvellement, suspension, prolongation, annulation), encaissement manuel, listes de suivi, tableau de bord | ✅ |
 | 4 | Reçus PDF numérotés (envoi par e-mail), paiement partiel avec acompte, soldes impayés, remboursements (avoirs), journal des paiements, export comptable CSV | ✅ |
 | 5 | Page publique `/s/[slug]`, inscription en ligne, couche prestataires (simulateur signé), webhooks idempotents, rapprochement planifié | ✅ (agrégateur réel à brancher) |
+| 6 | Contrôle d'accès : QR dynamique (30 s, généré sur le téléphone), badges révocables, écran de scan (douchette, caméra), restrictions figées à la vente, quota, anti-passback, journal des passages, fréquentation, mode hors ligne | ✅ |
 
 ## Stack
 

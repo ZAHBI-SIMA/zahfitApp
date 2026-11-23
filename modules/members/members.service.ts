@@ -178,7 +178,8 @@ export async function searchMembers(tx: Tx, params: { q?: string; filter?: Membe
 }
 
 export function getMember(tx: Tx, memberId: string) {
-  return tx.member.findUnique({ where: { id: memberId } });
+  // L'empreinte du badge ne sort jamais du serveur (fiche transmise aux formulaires clients).
+  return tx.member.findUnique({ where: { id: memberId }, omit: { badgeHash: true } });
 }
 
 /** Historique des opérations sur la fiche (journal d'audit). */
