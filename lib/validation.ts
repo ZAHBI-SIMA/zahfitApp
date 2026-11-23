@@ -20,7 +20,10 @@ export function parseForm<S extends z.ZodType>(
   const raw: Record<string, unknown> = {};
   for (const [key, value] of formData.entries()) {
     // Champs techniques ajoutés par React ($ACTION_…) ignorés.
-    if (!key.startsWith("$")) raw[key] = value;
+    if (key.startsWith("$")) continue;
+    // Champ répété (cases à cocher multiples) → tableau de valeurs.
+    const previous = raw[key];
+    raw[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value];
   }
   const result = schema.safeParse(raw);
   if (result.success) return { data: result.data };

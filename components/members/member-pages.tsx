@@ -23,6 +23,7 @@ import {
 } from "@/modules/members/members.service";
 import { ArchiveMemberButton } from "@/components/members/archive-button";
 import { MemberForm } from "@/components/members/member-form";
+import { SubscriptionPanel } from "@/components/subscriptions/subscription-panel";
 
 /**
  * Pages adhérents partagées par l'Administration et la Réception : même
@@ -224,10 +225,14 @@ export async function MemberDetail({
 
       {created && (
         <p role="status" className="mb-4 rounded-lg border border-brand/40 bg-brand/10 px-4 py-3 text-sm">
-          Adhérent inscrit avec le code <strong>{m.code}</strong>. Prochaine étape au Sprint 3 : lui
-          attribuer une formule d&apos;abonnement.
+          Adhérent inscrit avec le code <strong>{m.code}</strong>. Attribuez-lui maintenant une formule
+          d&apos;abonnement ci-dessous.
         </p>
       )}
+
+      <div className="mb-6">
+        <SubscriptionPanel ctx={ctx} memberId={m.id} archived={archived} />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
         <section className="rounded-xl border bg-card p-5" aria-labelledby="identite">
@@ -258,8 +263,7 @@ export async function MemberDetail({
           <div className="rounded-xl border bg-card p-4 text-sm">
             <h2 className="mb-2 font-medium">Bientôt sur cette fiche</h2>
             <ul className="space-y-1 text-muted-foreground">
-              <li>Abonnements — Sprint 3</li>
-              <li>Paiements et reçus — Sprint 4</li>
+              <li>Reçus PDF et paiement partiel — Sprint 4</li>
               <li>Entrées (QR Code) — Sprint 6</li>
             </ul>
           </div>

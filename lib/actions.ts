@@ -1,4 +1,5 @@
 import "server-only";
+import { refresh } from "next/cache";
 import { BusinessError } from "@/lib/errors";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { ForbiddenError, requirePermission } from "@/lib/rbac/guard";
@@ -36,6 +37,16 @@ export async function requirePlatformActionUser(): Promise<SessionUser> {
     throw new BusinessError("Activez la double authentification pour effectuer cette action.");
   }
   return user;
+}
+
+/**
+ * Succès d'une mutation. `refresh()` relance le rendu serveur de la page
+ * courante : sans lui, une Server Action renvoie son message mais les
+ * données affichées (statut d'abonnement, liste…) restent périmées.
+ */
+export function ok(message: string): FormState {
+  refresh();
+  return { ok: true, message };
 }
 
 /** Convertit toute erreur connue en état de formulaire ; relance le reste. */

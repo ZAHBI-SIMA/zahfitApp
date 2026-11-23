@@ -38,7 +38,8 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
   admin: [
     { href: "/admin", label: "Tableau de bord", icon: "dashboard", permission: "dashboard.view" },
     { href: "/admin/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
-    { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage", plannedSprint: 3 },
+    { href: "/admin/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
+    { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage" },
     { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read", plannedSprint: 4 },
     { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 5 },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
@@ -47,6 +48,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
   reception: [
     { href: "/reception", label: "Accueil", icon: "dashboard" },
     { href: "/reception/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
+    { href: "/reception/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan", plannedSprint: 6 },
     { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect", plannedSprint: 4 },
   ],
@@ -58,6 +60,6 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/member", label: "Mon abonnement", icon: "card" },
     { href: "/member/qr", label: "Mon QR Code", icon: "qr", plannedSprint: 6 },
     { href: "/member/reservations", label: "Réservations", icon: "calendar", plannedSprint: 8 },
-    { href: "/member/profil", label: "Mon profil", icon: "user", plannedSprint: 2 },
+    { href: "/member/profil", label: "Mon profil", icon: "user", plannedSprint: 5 },
   ],
 };

@@ -167,11 +167,157 @@ model Tenant {
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
 
-  memberships TenantMembership[]
-  auditLogs   AuditLog[]
-  members     Member[]
+  memberships   TenantMembership[]
+  auditLogs     AuditLog[]
+  members       Member[]
+  plans         MembershipPlan[]
+  subscriptions Subscription[]
+  payments      Payment[]
 
   @@map("tenants")
+}
+
+// ---------------------------------------------------------------------------
+// Formules et abonnements (Module 3)
+// ---------------------------------------------------------------------------
+
+enum DurationUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+/// Formule commerciale d'une salle (journalier, mensuel, étudiant, VIP…).
+/// Jamais supprimée : une formule retirée de la vente passe isActive=false.
+model MembershipPlan {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  tenantId      String       @map("tenant_id") @db.Uuid
+  name          String
+  description   String?
+  /// Montant en francs CFA (entier, le XOF n'a pas de centimes)
+  priceXof      Int          @map("price_xof")
+  durationValue Int          @map("duration_value")
+  durationUnit  DurationUnit @map("duration_unit")
+  benefits      String[]     @default([])
+  // Restrictions (appliquées au contrôle d'accès, Sprint 6)
+  /// Jours autorisés 1 = lundi … 7 = dimanche ; vide = tous les jours
+  allowedDays   Int[]        @default([]) @map("allowed_days")
+  /// Créneau d'accès « HH:MM » ; null = horaires d'ouverture de la salle
+  accessFrom    String?      @map("access_from")
+  accessUntil   String?      @map("access_until")
+  /// Nombre d'entrées sur la période ; null = illimité
+  maxEntries    Int?         @map("max_entries")
+  /// Jours de suspension (gel) autorisés par abonnement
+  maxFreezeDays Int          @default(0) @map("max_freeze_days")
+  isActive      Boolean      @default(true) @map("is_active")
+  sortOrder     Int          @default(0) @map("sort_order")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscriptions Subscription[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive, sortOrder])
+  @@map("membership_plans")
+}
+
+enum SubscriptionStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  FROZEN
+  EXPIRED
+  CANCELLED
+}
+
+/// Abonnement souscrit. Règle du cahier des charges : un renouvellement crée
+/// une NOUVELLE ligne (previousId) — l'historique n'est jamais écrasé.
+/// Le prix et la durée sont figés au moment de la vente.
+model Subscription {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  memberId      String             @map("member_id") @db.Uuid
+  planId        String             @map("plan_id") @db.Uuid
+  planName      String             @map("plan_name")
+  priceXof      Int                @map("price_xof")
+  durationValue Int                @map("duration_value")
+  durationUnit  DurationUnit       @map("duration_unit")
+  /// Dates calendaires (fuseau Africa/Abidjan = UTC), fin INCLUSE
+  startDate     DateTime           @map("start_date") @db.Date
+  endDate       DateTime           @map("end_date") @db.Date
+  status        SubscriptionStatus @default(PENDING_PAYMENT)
+  /// Début du gel en cours (status FROZEN)
+  frozenSince   DateTime?          @map("frozen_since") @db.Date
+  /// Jours de gel déjà consommés (plafonnés par maxFreezeDays)
+  frozenDays    Int                @default(0) @map("frozen_days")
+  previousId    String?            @map("previous_id") @db.Uuid
+  activatedAt   DateTime?          @map("activated_at") @db.Timestamptz(3)
+  cancelledAt   DateTime?          @map("cancelled_at") @db.Timestamptz(3)
+  cancelReason  String?            @map("cancel_reason")
+  createdById   String?            @map("created_by_id")
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  member   Member         @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  plan     MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  previous Subscription?  @relation("Renewal", fields: [previousId], references: [id], onDelete: Restrict)
+  renewals Subscription[] @relation("Renewal")
+  payments Payment[]
+
+  @@index([tenantId, memberId, startDate])
+  @@index([tenantId, status, endDate])
+  @@map("subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// Paiements (Module 4 — encaissement manuel dès le Sprint 3)
+// ---------------------------------------------------------------------------
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY
+  TRANSFER
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+/// Transaction. Jamais supprimée (le rôle applicatif n'a pas le droit DELETE).
+/// Seules les transactions SUCCEEDED comptent dans les statistiques.
+model Payment {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  tenantId       String        @map("tenant_id") @db.Uuid
+  memberId       String        @map("member_id") @db.Uuid
+  subscriptionId String?       @map("subscription_id") @db.Uuid
+  amountXof      Int           @map("amount_xof")
+  method         PaymentMethod
+  /// "manual" (saisie à l'accueil) ; plus tard : agrégateur, orange, mtn, wave…
+  provider       String        @default("manual")
+  /// Référence de transaction (n° Mobile Money, virement…)
+  providerRef    String?       @map("provider_ref")
+  status         PaymentStatus @default(PENDING)
+  collectedById  String?       @map("collected_by_id")
+  paidAt         DateTime?     @map("paid_at") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  member       Member        @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  /// Une même référence d'opérateur ne peut pas être enregistrée deux fois
+  @@unique([tenantId, provider, providerRef])
+  @@index([tenantId, status, paidAt])
+  @@index([tenantId, memberId])
+  @@map("payments")
 }
 
 // ---------------------------------------------------------------------------
@@ -220,8 +366,10 @@ model Member {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   archivedAt  DateTime? @map("archived_at") @db.Timestamptz(3)
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subscriptions Subscription[]
+  payments      Payment[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, phone])

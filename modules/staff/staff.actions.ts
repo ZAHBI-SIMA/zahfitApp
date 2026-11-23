@@ -1,6 +1,6 @@
 "use server";
 
-import { requireActionContext, toFormState } from "@/lib/actions";
+import { ok, requireActionContext, toFormState } from "@/lib/actions";
 import { withTenant } from "@/lib/db";
 import { findOrCreateUser, sendActivationLinkIfNeeded } from "@/lib/invite";
 import { parseForm, type FormState } from "@/lib/validation";
@@ -23,12 +23,11 @@ export async function inviteStaffAction(_prev: FormState, formData: FormData): P
       addStaffMember(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, user.id, parsed.data),
     );
     const sent = await sendActivationLinkIfNeeded(user.id, parsed.data.email);
-    return {
-      ok: true,
-      message: sent
+    return ok(
+      sent
         ? `Invitation envoyée à ${parsed.data.email} : un lien pour choisir son mot de passe (valable 24 h).`
         : `${parsed.data.name} a déjà un compte ZAHFIT : l'accès à la salle est actif immédiatement.`,
-    };
+    );
   } catch (error) {
     return toFormState(error);
   }
@@ -42,7 +41,7 @@ export async function changeStaffRoleAction(_prev: FormState, formData: FormData
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
       changeStaffRole(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, parsed.data.membershipId, parsed.data.role),
     );
-    return { ok: true, message: "Rôle modifié." };
+    return ok("Rôle modifié.");
   } catch (error) {
     return toFormState(error);
   }
@@ -55,7 +54,7 @@ export async function setStaffStatusAction(_prev: FormState, formData: FormData)
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
       setStaffStatus(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, String(formData.get("membershipId")), status),
     );
-    return { ok: true, message: status === "DISABLED" ? "Accès désactivé." : "Accès réactivé." };
+    return ok(status === "DISABLED" ? "Accès désactivé." : "Accès réactivé.");
   } catch (error) {
     return toFormState(error);
   }

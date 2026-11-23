@@ -48,5 +48,12 @@ UPDATE users SET two_factor_enabled = false WHERE email = 'admin@pilote.zahfit.l
 | Se rétrograder soi-même / désactiver le dernier admin | admin | Refusé |
 | Créer une salle, puis la suspendre avec un motif | superadmin | L'équipe de la salle voit « accès suspendu » |
 | Comparer les adhérents des deux salles | admin pilote, puis admin plateau | Chaque salle ne voit que les siens (RLS) |
+| Attribuer « Mensuel » + encaisser en Mobile Money **sans** référence, puis avec | accueil | Refus sans référence, puis abonnement « En cours » |
+| Suspendre puis reprendre un abonnement | accueil | Statut « Suspendu », puis fin repoussée des jours gelés |
+| Renouveler avant la fin | accueil | Le nouvel abonnement démarre le lendemain de la fin actuelle |
+| Prolonger de 7 jours avec un motif / annuler un abonnement payé | gerant | Autorisé (bouton absent pour la réceptionniste) |
+| Créer ou modifier une formule (prix, restrictions, jours de gel) | admin | Les abonnements déjà vendus gardent leur ancien prix |
+| Consulter les listes « À renouveler », « Expirés », « En attente » | accueil ou admin | Listes de suivi à jour |
+| Se connecter en adhérent | adherent | « Mon abonnement » avec le nombre de jours restants |
 
 En local, sans `RESEND_API_KEY`, les e-mails (invitation, mot de passe oublié) ne partent pas : leur lien s'affiche dans le terminal de `pnpm dev`.

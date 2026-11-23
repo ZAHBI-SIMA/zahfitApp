@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireActionContext, toFormState } from "@/lib/actions";
+import { ok, requireActionContext, toFormState } from "@/lib/actions";
 import { withTenant } from "@/lib/db";
 import { parseForm, type FormState } from "@/lib/validation";
 import {
@@ -40,7 +40,7 @@ export async function updateMemberAction(_prev: FormState, formData: FormData): 
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
       updateMember(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, String(formData.get("id")), parsed.data),
     );
-    return { ok: true, message: "Fiche enregistrée." };
+    return ok("Fiche enregistrée.");
   } catch (error) {
     return toFormState(error);
   }
@@ -53,7 +53,7 @@ export async function setMemberArchivedAction(_prev: FormState, formData: FormDa
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
       setMemberArchived(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, String(formData.get("id")), archived),
     );
-    return { ok: true, message: archived ? "Adhérent archivé." : "Adhérent restauré." };
+    return ok(archived ? "Adhérent archivé." : "Adhérent restauré.");
   } catch (error) {
     return toFormState(error);
   }
@@ -94,7 +94,7 @@ export async function importMembersAction(_prev: ImportState, formData: FormData
       };
     }
     if (result.imported !== undefined) {
-      return { ok: true, imported: result.imported, message: `${result.imported} adhérent(s) importé(s).` };
+      return { ...ok(`${result.imported} adhérent(s) importé(s).`), imported: result.imported };
     }
     return { ok: true, analysis: result.analysis };
   } catch (error) {

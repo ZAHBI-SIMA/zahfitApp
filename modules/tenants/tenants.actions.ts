@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireActionContext, requirePlatformActionUser, toFormState } from "@/lib/actions";
+import { ok, requireActionContext, requirePlatformActionUser, toFormState } from "@/lib/actions";
 import { withPlatform, withTenant } from "@/lib/db";
 import { findOrCreateUser, sendActivationLinkIfNeeded } from "@/lib/invite";
 import { parseForm, type FormState } from "@/lib/validation";
@@ -42,7 +42,7 @@ export async function updateTenantAction(_prev: FormState, formData: FormData): 
     const parsed = parseForm(tenantUpdateSchema, formData);
     if (parsed.state) return parsed.state;
     await withPlatform(actor.id, (tx) => updateTenant(tx, actor.id, String(formData.get("id")), parsed.data));
-    return { ok: true, message: "Salle enregistrée." };
+    return ok("Salle enregistrée.");
   } catch (error) {
     return toFormState(error);
   }
@@ -56,7 +56,7 @@ export async function setTenantSuspendedAction(_prev: FormState, formData: FormD
     await withPlatform(actor.id, (tx) =>
       setTenantSuspended(tx, actor.id, String(formData.get("id")), suspended, reason),
     );
-    return { ok: true, message: suspended ? "Salle suspendue." : "Salle réactivée." };
+    return ok(suspended ? "Salle suspendue." : "Salle réactivée.");
   } catch (error) {
     return toFormState(error);
   }
@@ -77,7 +77,7 @@ export async function updateTenantSettingsAction(_prev: FormState, formData: For
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
       updateTenantSettings(tx, { tenantId: ctx.tenant.id, userId: ctx.user.id }, parsed.data, hours.hours),
     );
-    return { ok: true, message: "Paramètres enregistrés." };
+    return ok("Paramètres enregistrés.");
   } catch (error) {
     return toFormState(error);
   }
