@@ -5,7 +5,7 @@ import type { MemberSource, MemberStatus, Prisma } from "@/lib/generated/prisma/
 import { phoneSearchDigits } from "@/lib/phone";
 import type { MemberInput } from "@/modules/members/members.schema";
 
-export type Actor = { tenantId: string; userId: string };
+export type Actor = { tenantId: string; userId: string | null };
 
 export const PAGE_SIZE = 25;
 

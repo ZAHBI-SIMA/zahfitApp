@@ -60,4 +60,17 @@ UPDATE users SET two_factor_enabled = false WHERE email = 'admin@pilote.zahfit.l
 | Rembourser une partie d'un paiement | gerant | Avoir AV-… émis, chiffre d'affaires du jour diminué |
 | Journal des paiements + « Exporter » | compta | Fichier CSV qui s'ouvre dans Excel |
 
+## Inscription et paiement en ligne (sans compte)
+
+Le prestataire est **simulé** (`PAYMENT_PROVIDER="sandbox"`) : aucun argent réel ne circule, et le simulateur est désactivé en production.
+
+| Scénario | Résultat attendu |
+|---|---|
+| Ouvrir http://localhost:3100/s/pilote-cocody | Vitrine de la salle avec ses formules actives |
+| « S'inscrire » sur une formule, remplir le formulaire, accepter les conditions | Redirection vers le simulateur `/paiement-test/SBX-…` |
+| « Simuler un paiement réussi » | « Bienvenue … ! », reçu REC-… ; dans la console : e-mail du reçu PDF + lien de création du mot de passe |
+| Recommencer et « Simuler un échec » | « Le paiement n'a pas abouti », bouton « Réessayer », aucun abonnement activé |
+| Côté salle (accueil ou admin) | L'adhérent apparaît ; le paiement en ligne figure au journal des paiements |
+| `curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3100/api/cron/paiements` | Résumé du rapprochement (tentatives expirées après 30 min) |
+
 En local, sans `RESEND_API_KEY`, les e-mails (invitation, mot de passe oublié) ne partent pas : leur lien s'affiche dans le terminal de `pnpm dev`.

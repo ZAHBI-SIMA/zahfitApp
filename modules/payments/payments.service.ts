@@ -7,7 +7,7 @@ import type { PaymentKind, Prisma } from "@/lib/generated/prisma/client";
 import { checkbox, optionalText } from "@/lib/validation";
 import { addDays } from "@/modules/subscriptions/dates";
 
-type Actor = { tenantId: string; userId: string };
+type Actor = { tenantId: string; userId: string | null };
 
 // --- Montants ----------------------------------------------------------------
 

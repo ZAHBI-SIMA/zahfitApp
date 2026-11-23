@@ -4,7 +4,7 @@ import type { Tx } from "@/lib/db";
 import { BusinessError } from "@/lib/errors";
 import { checkbox, optionalText, requiredText } from "@/lib/validation";
 
-type Actor = { tenantId: string; userId: string };
+type Actor = { tenantId: string; userId: string | null };
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

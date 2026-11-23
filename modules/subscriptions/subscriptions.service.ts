@@ -26,7 +26,7 @@ import {
   renewalStartDate,
 } from "@/modules/subscriptions/dates";
 
-type Actor = { tenantId: string; userId: string };
+type Actor = { tenantId: string; userId: string | null };
 
 /** Abonnements « vivants » : ni expirés en base, ni annulés. */
 const LIVE: SubscriptionStatus[] = ["PENDING_PAYMENT", "ACTIVE", "FROZEN"];
@@ -500,4 +500,17 @@ export async function dashboardStats(tx: Tx, today: Date) {
     revenueMonth: net(month),
     revenueToday: net(day),
   };
+}
+
+/** Active un abonnement en attente dès que le net encaissé atteint le seuil (paiement en ligne). */
+export async function activateIfPaid(tx: Tx, actor: Actor, subscriptionId: string): Promise<boolean> {
+  const sub = await tx.subscription.findUnique({ where: { id: subscriptionId }, select: { status: true, priceXof: true } });
+  if (!sub || sub.status !== "PENDING_PAYMENT") return false;
+  const settings = await tx.tenant.findUniqueOrThrow({
+    where: { id: actor.tenantId },
+    select: { allowPartialPayment: true, minDepositPercent: true },
+  });
+  if ((await netPaid(tx, subscriptionId)) < activationThreshold(sub.priceXof, settings)) return false;
+  await activate(tx, actor, subscriptionId, "payment");
+  return true;
 }

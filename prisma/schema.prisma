@@ -328,6 +328,8 @@ model Payment {
   status         PaymentStatus @default(PENDING)
   collectedById  String?       @map("collected_by_id")
   paidAt         DateTime?     @map("paid_at") @db.Timestamptz(3)
+  /// Paiement en ligne : au-delà, une tentative PENDING passe EXPIRED
+  expiresAt      DateTime?     @map("expires_at") @db.Timestamptz(3)
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -459,4 +461,24 @@ model Receipt {
 
   @@unique([tenantId, number])
   @@map("receipts")
+}
+
+/// Notification serveur d'un prestataire de paiement (webhook). Stockée AVANT
+/// traitement ; la clé unique (provider, eventId) rend le traitement
+/// idempotent : une notification rejouée ne produit aucun effet.
+model PaymentWebhookEvent {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  provider       String
+  eventId        String    @map("event_id")
+  providerRef    String    @map("provider_ref")
+  status         String
+  amountXof      Int?      @map("amount_xof")
+  payload        Json
+  receivedAt     DateTime  @default(now()) @map("received_at") @db.Timestamptz(3)
+  processedAt    DateTime? @map("processed_at") @db.Timestamptz(3)
+  result         String?
+
+  @@unique([provider, eventId])
+  @@index([provider, providerRef])
+  @@map("payment_webhook_events")
 }
