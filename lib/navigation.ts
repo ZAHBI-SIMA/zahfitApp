@@ -41,6 +41,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage" },
     { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read" },
+    { href: "/admin/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/admin/acces", label: "Fréquentation", icon: "qr", permission: "access.scan" },
     { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 11 },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
@@ -51,10 +52,13 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/reception/adherents", label: "Adhérents", icon: "users", permission: "members.read" },
     { href: "/reception/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan" },
+    { href: "/reception/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect" },
   ],
   coach: [
     { href: "/coach", label: "Mes cours", icon: "calendar" },
+    { href: "/coach/planning", label: "Planning", icon: "calendar" },
+    { href: "/coach/profil", label: "Mon profil", icon: "user" },
     { href: "/coach/presences", label: "Présences", icon: "users", permission: "attendance.write", plannedSprint: 8 },
   ],
   member: [

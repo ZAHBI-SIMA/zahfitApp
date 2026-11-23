@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { InviteStaffForm, StaffRowActions } from "@/components/staff/staff-forms";
@@ -34,7 +35,12 @@ export default async function StaffPage() {
             {staff.map((s) => (
               <tr key={s.id} className="border-b align-top last:border-0">
                 <td className="px-4 py-3">
-                  <p className="font-medium">{s.user.name}</p>
+                  <Link href={`/admin/equipe/${s.id}`} className="font-medium hover:underline">
+                    {s.user.name}
+                  </Link>
+                  {s.specialties.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{s.specialties.join(", ")}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{s.user.email}</p>
                 </td>
                 <td className="px-4 py-3">

@@ -8,6 +8,13 @@ import "dotenv/config";
 import { auth } from "@/lib/auth";
 import { prisma, withPlatform, withTenant } from "@/lib/db";
 import type { TenantRole } from "@/lib/generated/prisma/enums";
+import {
+  createSeries,
+  saveClassType,
+  saveRoom,
+  tenantToday,
+  updateStaffProfile,
+} from "@/modules/classes/classes.service";
 import { createMember } from "@/modules/members/members.service";
 import { createPlan } from "@/modules/plans/plans.service";
 import { addDays, todayCalendar } from "@/modules/subscriptions/dates";
@@ -129,6 +136,70 @@ async function seedPiloteCatalog() {
   });
 }
 
+/** Planning de démonstration : salles de cours, types et cours réguliers du coach de démo. */
+async function seedPilotePlanning() {
+  const ctx = await auth.$context;
+  const admin = await ctx.internalAdapter.findUserByEmail("admin@pilote.zahfit.local");
+  const coachUser = await ctx.internalAdapter.findUserByEmail("coach@pilote.zahfit.local");
+  if (!admin || !coachUser) return;
+  const adminId = admin.user.id;
+  const tenant = await withPlatform(adminId, (tx) => tx.tenant.findUnique({ where: { slug: "pilote-cocody" } }));
+  if (!tenant) return;
+  const actor = { tenantId: tenant.id, userId: adminId };
+
+  await withTenant(tenant.id, adminId, async (tx) => {
+    if ((await tx.classType.count()) > 0) return; // déjà initialisé
+    const coach = await tx.tenantMembership.findFirstOrThrow({
+      where: { tenantId: tenant.id, userId: coachUser.user.id },
+      select: { id: true },
+    });
+    await updateStaffProfile(tx, actor, coach.id, {
+      phone: null,
+      bio: "Coach diplômé, 8 ans d'expérience en préparation physique.",
+      specialties: ["Cross-training", "Yoga", "Renforcement"],
+      availability: {
+        lun: ["06:00-09:00", "17:00-21:00"],
+        mar: ["06:00-09:00", "17:00-21:00"],
+        mer: ["17:00-21:00"],
+        jeu: ["06:00-09:00", "17:00-21:00"],
+        ven: ["17:00-21:00"],
+        sam: ["08:00-13:00"],
+        dim: [],
+      },
+    });
+    const studio = await saveRoom(tx, actor, { name: "Studio", capacity: 20, isActive: true });
+    const plateau = await saveRoom(tx, actor, { name: "Plateau cross", capacity: 15, isActive: true });
+    const type = (name: string, color: string, durationMinutes: number, defaultCapacity: number) =>
+      saveClassType(tx, actor, { name, description: null, color, durationMinutes, defaultCapacity, isActive: true });
+    const cross = await type("Cross-training", "#E67334", 60, 15);
+    const yoga = await type("Yoga", "#4F46E5", 60, 20);
+    const zumba = await type("Zumba", "#16A34A", 60, 20);
+
+    const { today } = await tenantToday(tx, tenant.id);
+    const series = (classTypeId: string, roomId: string, weekday: number, startTime: string, capacity: number) =>
+      createSeries(
+        tx,
+        actor,
+        {
+          classTypeId,
+          coachId: coach.id,
+          roomId,
+          weekday,
+          startTime,
+          durationMinutes: 60,
+          capacity,
+          startsOn: today,
+          endsOn: null,
+        },
+        today,
+      );
+    await series(cross.id, plateau.id, 1, "18:00", 15);
+    await series(cross.id, plateau.id, 3, "18:00", 15);
+    await series(yoga.id, studio.id, 2, "07:00", 20);
+    await series(zumba.id, studio.id, 6, "10:00", 20);
+  });
+}
+
 async function main() {
   const superAdminId = await ensureUser(ACCOUNTS[0].email, ACCOUNTS[0].name, "SUPER_ADMIN");
 
@@ -151,7 +222,10 @@ async function main() {
   });
 
   await seedPiloteCatalog();
-  console.info(`Seed terminé : ${TENANTS.length} salles, ${ACCOUNTS.length} comptes, formules de démonstration.`);
+  await seedPilotePlanning();
+  console.info(
+    `Seed terminé : ${TENANTS.length} salles, ${ACCOUNTS.length} comptes, formules et planning de démonstration.`,
+  );
 }
 
 main()

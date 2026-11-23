@@ -164,16 +164,15 @@ export async function searchMembers(tx: Tx, params: { q?: string; filter?: Membe
       : {}),
   };
 
-  const [items, total] = await Promise.all([
-    tx.member.findMany({
-      where,
-      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: { id: true, code: true, firstName: true, lastName: true, phone: true, email: true, status: true, createdAt: true },
-    }),
-    tx.member.count({ where }),
-  ]);
+  // Séquentiel : une transaction PostgreSQL n'exécute qu'une requête à la fois.
+  const items = await tx.member.findMany({
+    where,
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
+    select: { id: true, code: true, firstName: true, lastName: true, phone: true, email: true, status: true, createdAt: true },
+  });
+  const total = await tx.member.count({ where });
   return { items, total, page, pageCount: Math.max(1, Math.ceil(total / PAGE_SIZE)) };
 }
 

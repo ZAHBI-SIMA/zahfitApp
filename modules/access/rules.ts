@@ -1,4 +1,5 @@
 import type { AccessReason, MemberStatus, SubscriptionStatus } from "@/lib/generated/prisma/enums";
+import { localParts } from "@/lib/timezone";
 
 /**
  * Règles d'accès — fonctions PURES et ISOMORPHES : le serveur (scan en
@@ -39,25 +40,8 @@ export type AccessDecision = {
   subscription: AccessSubscription | null;
 };
 
-/** Date, jour de semaine (1 = lundi) et heure « HH:MM » dans le fuseau de la salle. */
-export function localParts(now: Date, timezone: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(now)
-      .map((p) => [p.type, p.value]),
-  );
-  const weekday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(parts.weekday) + 1;
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, weekday, time: `${parts.hour}:${parts.minute}` };
-}
+/** Date, jour de semaine et heure dans le fuseau de la salle (voir lib/timezone.ts). */
+export { localParts };
 
 /** Début inclus, fin exclue : « 06:00-22:00 » refuse à 22:00 pile. */
 const inRange = (time: string, from: string, until: string) => time >= from && time < until;

@@ -77,6 +77,26 @@ UPDATE users SET two_factor_enabled = false WHERE email = 'admin@pilote.zahfit.l
 
 Sur l'appareil de l'accueil, l'écran de scan garde en cache les droits des adhérents (sans téléphone ni e-mail) pour fonctionner sans réseau. Utilisez un appareil réservé à l'accueil.
 
+## Planning des cours
+
+Le seed crée un planning de démonstration : 3 types de cours (Cross-training, Yoga, Zumba), 2 salles de cours et 4 cours réguliers animés par Serge Bamba (compte coach).
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| « Mes cours » | coach | Ses séances des 14 prochains jours |
+| « Planning » → vue Semaine, puis un jour, flèches ← → | coach, accueil | Planning de la salle, en lecture |
+| « Mon profil » : saisir `6h-12h` un jour, enregistrer | coach | Erreur sous le champ, saisie conservée |
+| « Mon profil » : disponibilités au format `06:00-12:00, 17:00-21:00` | coach | « Profil enregistré » |
+| Planning → « Cours réguliers, types et salles » → nouveau cours régulier | admin, gerant | 8 semaines de séances créées |
+| Créer un cours au même moment pour le même coach ou la même salle | admin | Refusé : « Conflit le … » |
+| Programmer un coach hors de ses disponibilités | admin | Refusé, avec le jour et l'heure |
+| Cliquer une séance → la modifier (remplaçant, horaire) | admin | Séance marquée « Modifiée », conservée si le cours régulier change |
+| Annuler une séance avec un motif, puis la rétablir | gerant | Barrée « Annulée — motif », puis rétablie |
+| Arrêter un cours régulier à une date | admin | Séances suivantes retirées |
+| Équipe → nom d'un membre | admin | Profil employé (spécialités, disponibilités) |
+
+Les séances sont générées 8 semaines à l'avance. En production, appelez chaque jour `GET /api/cron/planning` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` pour prolonger le planning.
+
 ## Inscription et paiement en ligne (sans compte)
 
 Le prestataire est **simulé** (`PAYMENT_PROVIDER="sandbox"`) : aucun argent réel ne circule, et le simulateur est désactivé en production.

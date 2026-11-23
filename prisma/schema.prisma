@@ -186,6 +186,10 @@ model Tenant {
   payments      Payment[]
   receipts      Receipt[]
   accessLogs    AccessLog[]
+  rooms         Room[]
+  classTypes    ClassType[]
+  classSeries   ClassSeries[]
+  classSessions ClassSession[]
 
   @@map("tenants")
 }
@@ -429,11 +433,19 @@ model TenantMembership {
   userId    String           @map("user_id")
   role      TenantRole
   status    MembershipStatus @default(ACTIVE)
+  // Profil employé (propre à la salle) — Sprint 7
+  phone        String?
+  bio          String?
+  specialties  String[] @default([])
+  /// Disponibilités hebdomadaires { "lun": ["06:00-12:00", "16:00-20:00"], … } ; null = non renseignées
+  availability Json?
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coachedSeries   ClassSeries[]
+  coachedSessions ClassSession[]
 
   @@unique([tenantId, userId])
   @@index([userId])
@@ -553,4 +565,117 @@ model AccessLog {
   @@index([tenantId, memberId, occurredAt])
   @@index([subscriptionId, granted])
   @@map("access_logs")
+}
+
+// --- Cours collectifs et planning (Sprint 7) -------------------------------
+
+/// Salle de cours (studio, plateau…) à l'intérieur de la salle de sport.
+model Room {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  /// Capacité physique ; null = non limitée
+  capacity  Int?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  series   ClassSeries[]
+  sessions ClassSession[]
+
+  @@unique([tenantId, name])
+  @@map("rooms")
+}
+
+/// Type de cours (Yoga, Cross-training…) : valeurs par défaut des séances.
+model ClassType {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String
+  description     String?
+  /// Couleur d'affichage dans le planning (#RRGGBB)
+  color           String   @default("#E67334")
+  durationMinutes Int      @default(60) @map("duration_minutes")
+  defaultCapacity Int      @default(20) @map("default_capacity")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  series   ClassSeries[]
+  sessions ClassSession[]
+
+  @@unique([tenantId, name])
+  @@map("class_types")
+}
+
+/// Cours régulier : un créneau hebdomadaire qui génère des séances.
+model ClassSeries {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  classTypeId     String    @map("class_type_id") @db.Uuid
+  coachId         String    @map("coach_id") @db.Uuid
+  roomId          String?   @map("room_id") @db.Uuid
+  /// 1 = lundi … 7 = dimanche
+  weekday         Int
+  /// Heure locale de la salle « HH:MM »
+  startTime       String    @map("start_time")
+  durationMinutes Int       @map("duration_minutes")
+  capacity        Int
+  startsOn        DateTime  @map("starts_on") @db.Date
+  /// Dernier jour (inclus) ; null = sans fin
+  endsOn          DateTime? @map("ends_on") @db.Date
+  /// Séances générées jusqu'à cette date (incluse)
+  generatedUntil  DateTime? @map("generated_until") @db.Date
+  createdById     String?   @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  classType ClassType        @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  coach     TenantMembership @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  room      Room?            @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  sessions  ClassSession[]
+
+  @@index([tenantId, endsOn])
+  @@map("class_series")
+}
+
+enum ClassSessionStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+/// Séance concrète (issue d'un cours régulier ou ponctuelle).
+model ClassSession {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  tenantId       String             @map("tenant_id") @db.Uuid
+  seriesId       String?            @map("series_id") @db.Uuid
+  /// Jour prévu par la série (identifie l'occurrence même si l'heure change)
+  occurrenceDate DateTime?          @map("occurrence_date") @db.Date
+  classTypeId    String             @map("class_type_id") @db.Uuid
+  coachId        String             @map("coach_id") @db.Uuid
+  roomId         String?            @map("room_id") @db.Uuid
+  startsAt       DateTime           @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime           @map("ends_at") @db.Timestamptz(3)
+  capacity       Int
+  status         ClassSessionStatus @default(SCHEDULED)
+  cancelReason   String?            @map("cancel_reason")
+  /// Modifiée individuellement : n'est plus réécrite par la série
+  isException    Boolean            @default(false) @map("is_exception")
+  notes          String?
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  series    ClassSeries?     @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  classType ClassType        @relation(fields: [classTypeId], references: [id], onDelete: Restrict)
+  coach     TenantMembership @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  room      Room?            @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@unique([seriesId, occurrenceDate])
+  @@index([tenantId, startsAt])
+  @@index([coachId, startsAt])
+  @@map("class_sessions")
 }

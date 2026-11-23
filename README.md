@@ -14,6 +14,7 @@ Adhérents, abonnements, paiements Mobile Money, contrôle d'accès par QR Code,
 | 4 | Reçus PDF numérotés (envoi par e-mail), paiement partiel avec acompte, soldes impayés, remboursements (avoirs), journal des paiements, export comptable CSV | ✅ |
 | 5 | Page publique `/s/[slug]`, inscription en ligne, couche prestataires (simulateur signé), webhooks idempotents, rapprochement planifié | ✅ (agrégateur réel à brancher) |
 | 6 | Contrôle d'accès : QR dynamique (30 s, généré sur le téléphone), badges révocables, écran de scan (douchette, caméra), restrictions figées à la vente, quota, anti-passback, journal des passages, fréquentation, mode hors ligne | ✅ |
+| 7 | Profils employés (spécialités, disponibilités), types de cours et salles de cours, cours réguliers hebdomadaires (séances générées sur 8 semaines, prolongées chaque jour), exceptions (remplacement, décalage, annulation), conflits coach/salle garantis par la base, planning semaine/jour, espace coach | ✅ |
 
 ## Stack
 

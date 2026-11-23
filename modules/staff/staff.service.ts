@@ -27,6 +27,7 @@ export function listStaff(tx: Tx, tenantId: string) {
       id: true,
       role: true,
       status: true,
+      specialties: true,
       createdAt: true,
       user: { select: { id: true, name: true, email: true, twoFactorEnabled: true } },
     },

@@ -484,15 +484,27 @@ export async function subscriptionReport(tx: Tx, kind: ReportKind, today: Date) 
 /** Indicateurs du tableau de bord — paiements CONFIRMÉS uniquement. */
 export async function dashboardStats(tx: Tx, today: Date) {
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const [inProgress, toRenew, expired, pending, members, month, day] = await Promise.all([
-    tx.subscription.findMany({ where: reportWhere("en-cours", today), select: { memberId: true }, distinct: ["memberId"] }),
-    tx.subscription.count({ where: reportWhere("a-renouveler", today) }),
-    tx.subscription.count({ where: reportWhere("expires", today) }),
-    tx.subscription.count({ where: reportWhere("en-attente", today) }),
-    tx.member.count({ where: { status: { not: "ARCHIVED" } } }),
-    tx.payment.groupBy({ by: ["kind"], where: { status: "SUCCEEDED", paidAt: { gte: monthStart } }, _sum: { amountXof: true } }),
-    tx.payment.groupBy({ by: ["kind"], where: { status: "SUCCEEDED", paidAt: { gte: today } }, _sum: { amountXof: true } }),
-  ]);
+  // Séquentiel : une transaction PostgreSQL n'exécute qu'une requête à la fois
+  // (Promise.all sur un même client pg est déprécié et cassera avec pg@9).
+  const inProgress = await tx.subscription.findMany({
+    where: reportWhere("en-cours", today),
+    select: { memberId: true },
+    distinct: ["memberId"],
+  });
+  const toRenew = await tx.subscription.count({ where: reportWhere("a-renouveler", today) });
+  const expired = await tx.subscription.count({ where: reportWhere("expires", today) });
+  const pending = await tx.subscription.count({ where: reportWhere("en-attente", today) });
+  const members = await tx.member.count({ where: { status: { not: "ARCHIVED" } } });
+  const month = await tx.payment.groupBy({
+    by: ["kind"],
+    where: { status: "SUCCEEDED", paidAt: { gte: monthStart } },
+    _sum: { amountXof: true },
+  });
+  const day = await tx.payment.groupBy({
+    by: ["kind"],
+    where: { status: "SUCCEEDED", paidAt: { gte: today } },
+    _sum: { amountXof: true },
+  });
   // Chiffre d'affaires NET : encaissements − remboursements, transactions confirmées uniquement.
   const net = (groups: { kind: string; _sum: { amountXof: number | null } }[]) =>
     groups.reduce((sum, g) => sum + signedAmount({ kind: g.kind, amountXof: g._sum.amountXof ?? 0 }), 0);
