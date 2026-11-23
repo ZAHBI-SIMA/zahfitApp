@@ -25,7 +25,8 @@ export const PERMISSIONS = [
   "payments.refund",
   "finance.reports.read", // CA, exports comptables
   "expenses.manage",
-  "cash.manage", // ouverture / clôture de caisse
+  "cash.operate", // ouvrir, compter et clôturer la caisse ; apports et retraits
+  "cash.manage", // valider les clôtures de caisse, réglages de caisse
   // Exploitation
   "access.scan", // contrôle d'accès QR
   "classes.read",
@@ -44,6 +45,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 /** Permissions touchant à l'argent : utilisées par les tests de sécurité. */
 export const FINANCIAL_PERMISSIONS = [
   "billing.settings.manage",
+  "cash.operate",
   "payments.read",
   "payments.collect",
   "payments.refund",
@@ -86,6 +88,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "payments.refund",
     "finance.reports.read",
     "expenses.manage",
+    "cash.operate",
     "cash.manage",
     "access.scan",
     "classes.read",
@@ -106,6 +109,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "subscriptions.write",
     "payments.read",
     "payments.collect",
+    "cash.operate",
     "access.scan",
     "classes.read",
     "bookings.manage",
@@ -120,8 +124,9 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
 
   /**
    * Comptable : « recettes, dépenses et rapports ». Lecture des adhérents
-   * (noms sur les reçus) et du journal d'audit, gestion de caisse, mais
-   * aucun encaissement ni remboursement : il contrôle, il n'opère pas.
+   * (noms sur les reçus) et du journal d'audit, rapports de caisse, mais
+   * aucun encaissement, remboursement ni tenue de caisse : il contrôle,
+   * il n'opère pas (la validation des clôtures revient au gérant).
    */
   ACCOUNTANT: [
     "dashboard.view",
@@ -131,7 +136,6 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "payments.read",
     "finance.reports.read",
     "expenses.manage",
-    "cash.manage",
   ],
 };
 

@@ -62,3 +62,14 @@ export function normalizeHeader(header: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "");
 }
+
+/**
+ * Écriture : cellule CSV (séparateur « ; »), guillemets seulement si nécessaire.
+ * Un TEXTE qui commence par = + - @ est préfixé d'une apostrophe : sinon
+ * Excel l'exécuterait comme une formule (injection via un libellé saisi).
+ */
+export const csvCell = (value: unknown) => {
+  const s = value === null || value === undefined ? "" : String(value);
+  const safe = typeof value === "string" && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return /[";\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+};

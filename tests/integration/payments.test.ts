@@ -80,6 +80,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const tenants = { in: [A.tenantId, B.tenantId] };
+  await owner.cashMovement.deleteMany({ where: { tenantId: tenants } }); // mouvements de caisse des paiements en espèces
   await owner.receipt.deleteMany({ where: { tenantId: tenants } });
   await owner.payment.updateMany({ where: { tenantId: tenants }, data: { refundOfId: null, kind: "PAYMENT" } });
   await owner.payment.deleteMany({ where: { tenantId: tenants } });

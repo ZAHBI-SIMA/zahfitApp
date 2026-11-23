@@ -26,6 +26,7 @@ import {
   parseCalendarDate,
   renewalStartDate,
 } from "@/modules/subscriptions/dates";
+import { recordCashMovement } from "@/modules/cash/cash.service";
 
 type Actor = { tenantId: string; userId: string | null };
 
@@ -314,6 +315,14 @@ export async function recordManualPayment(
     },
   });
   const receipt = await issueReceipt(tx, actor.tenantId, payment);
+  if (input.method === "CASH") {
+    await recordCashMovement(tx, actor, {
+      kind: "PAYMENT",
+      amountXof: amount,
+      label: `${receipt.number} — ${sub.planName}`,
+      paymentId: payment.id,
+    });
+  }
   await audit(tx, {
     tenantId: actor.tenantId,
     actorUserId: actor.userId,

@@ -42,6 +42,8 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/abonnements", label: "Abonnements", icon: "calendar", permission: "subscriptions.read" },
     { href: "/admin/formules", label: "Formules", icon: "card", permission: "plans.manage" },
     { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read" },
+    { href: "/admin/caisse", label: "Caisse", icon: "wallet", permission: "finance.reports.read" },
+    { href: "/admin/depenses", label: "Dépenses", icon: "card", permission: "expenses.manage" },
     { href: "/admin/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/admin/acces", label: "Fréquentation", icon: "qr", permission: "access.scan" },
     { href: "/admin/messages", label: "Messages", icon: "bell", permission: "tenant.settings.manage" },
@@ -56,6 +58,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/reception/scan", label: "Contrôle d'accès", icon: "qr", permission: "access.scan" },
     { href: "/reception/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/reception/encaisser", label: "Encaisser", icon: "wallet", permission: "payments.collect" },
+    { href: "/reception/caisse", label: "Caisse", icon: "wallet", permission: "cash.operate" },
   ],
   coach: [
     { href: "/coach", label: "Mes cours", icon: "calendar" },

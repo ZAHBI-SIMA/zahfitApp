@@ -181,6 +181,8 @@ model Tenant {
   /// Canaux payants activés par la salle (coût par message)
   whatsappEnabled     Boolean @default(false) @map("whatsapp_enabled")
   smsEnabled          Boolean @default(false) @map("sms_enabled")
+  /// Caisse : encaissement en espèces refusé tant qu'aucune caisse n'est ouverte
+  cashSessionRequired Boolean @default(false) @map("cash_session_required")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -201,6 +203,11 @@ model Tenant {
   notifications Notification[]
   messages      Message[]
   renewalLinks  RenewalLink[]
+  expenseCategories  ExpenseCategory[]
+  expenses           Expense[]
+  expenseAttachments ExpenseAttachment[]
+  cashSessions       CashSession[]
+  cashMovements      CashMovement[]
 
   @@map("tenants")
 }
@@ -365,6 +372,7 @@ model Payment {
   refundOf     Payment?      @relation("Refunds", fields: [refundOfId], references: [id], onDelete: Restrict)
   refunds      Payment[]     @relation("Refunds")
   receipt      Receipt?
+  cashMovement CashMovement?
 
   /// Une même référence d'opérateur ne peut pas être enregistrée deux fois
   @@unique([tenantId, provider, providerRef])
@@ -874,4 +882,145 @@ model RenewalLink {
   @@index([tenantId, subscriptionId])
   @@index([renewalSubscriptionId])
   @@map("renewal_links")
+}
+
+// ---------------------------------------------------------------------------
+// Dépenses et caisse (Sprint 10)
+// ---------------------------------------------------------------------------
+
+model ExpenseCategory {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  expenses Expense[]
+
+  @@unique([tenantId, name])
+  @@map("expense_categories")
+}
+
+enum ExpenseStatus {
+  RECORDED
+  /// Annulée (erreur de saisie) : jamais supprimée, l'historique reste lisible
+  VOIDED
+}
+
+model Expense {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  tenantId     String        @map("tenant_id") @db.Uuid
+  categoryId   String        @map("category_id") @db.Uuid
+  label        String
+  supplier     String?
+  amountXof    Int           @map("amount_xof")
+  spentOn      DateTime      @map("spent_on") @db.Date
+  method       PaymentMethod
+  /// N° de facture, de transaction Mobile Money…
+  reference    String?
+  note         String?
+  status       ExpenseStatus @default(RECORDED)
+  recordedById String        @map("recorded_by_id")
+  voidReason   String?       @map("void_reason")
+  voidedById   String?       @map("voided_by_id")
+  voidedAt     DateTime?     @map("voided_at") @db.Timestamptz(3)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  category      ExpenseCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  attachments   ExpenseAttachment[]
+  cashMovements CashMovement[]
+
+  @@index([tenantId, spentOn])
+  @@map("expenses")
+}
+
+/// Justificatif (photo de facture, PDF) stocké en base : isolé par la RLS, sauvegardé avec le reste
+model ExpenseAttachment {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  expenseId    String   @map("expense_id") @db.Uuid
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  sha256       String
+  data         Bytes
+  uploadedById String   @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, expenseId])
+  @@map("expense_attachments")
+}
+
+enum CashSessionStatus {
+  OPEN
+  /// Comptée et clôturée, en attente de validation par le gérant
+  CLOSED
+  VALIDATED
+}
+
+model CashSession {
+  id              String            @id @default(uuid(7)) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  status          CashSessionStatus @default(OPEN)
+  openedById      String            @map("opened_by_id")
+  openedAt        DateTime          @default(now()) @map("opened_at") @db.Timestamptz(3)
+  /// Fond de caisse compté à l'ouverture
+  openingFloatXof Int               @map("opening_float_xof")
+  closedById      String?           @map("closed_by_id")
+  closedAt        DateTime?         @map("closed_at") @db.Timestamptz(3)
+  /// Théorique = fond + mouvements ; compté = billets et pièces ; écart = compté − théorique
+  expectedXof     Int?              @map("expected_xof")
+  countedXof      Int?              @map("counted_xof")
+  differenceXof   Int?              @map("difference_xof")
+  closingNote     String?           @map("closing_note")
+  validatedById   String?           @map("validated_by_id")
+  validatedAt     DateTime?         @map("validated_at") @db.Timestamptz(3)
+  validationNote  String?           @map("validation_note")
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  movements CashMovement[]
+
+  @@index([tenantId, openedAt])
+  @@map("cash_sessions")
+}
+
+enum CashMovementKind {
+  PAYMENT
+  REFUND
+  EXPENSE
+  /// Annulation d'une dépense payée en espèces (contre-passation)
+  EXPENSE_VOID
+  /// Apport (ex. monnaie) et retrait (ex. remise en banque)
+  DEPOSIT
+  WITHDRAWAL
+}
+
+/// Mouvement d'espèces, immuable. Montant signé : + entrée, − sortie
+model CashMovement {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
+  /// null : espèces encaissées alors qu'aucune caisse n'était ouverte (« hors caisse »)
+  sessionId   String?          @map("session_id") @db.Uuid
+  kind        CashMovementKind
+  amountXof   Int              @map("amount_xof")
+  label       String
+  paymentId   String?          @unique @map("payment_id") @db.Uuid
+  expenseId   String?          @map("expense_id") @db.Uuid
+  createdById String?          @map("created_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  session CashSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  payment Payment?     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  expense Expense?     @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseId, kind])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, createdAt])
+  @@map("cash_movements")
 }

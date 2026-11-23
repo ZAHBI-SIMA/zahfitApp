@@ -92,6 +92,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const tenants = { in: [A.tenantId, B.tenantId] };
+  await owner.cashMovement.deleteMany({ where: { tenantId: tenants } }); // mouvements de caisse des paiements en espèces
   await owner.receipt.deleteMany({ where: { tenantId: tenants } }); // les reçus référencent les paiements
   await owner.payment.deleteMany({ where: { tenantId: tenants } });
   await owner.subscription.updateMany({ where: { tenantId: tenants }, data: { previousId: null } });

@@ -113,6 +113,25 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## Caisse et dépenses
+
+La caisse ne concerne que les **espèces** : les paiements Mobile Money n'y entrent pas.
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Accueil → « Caisse » → fond de 25 000 → « Ouvrir la caisse » | accueil | Caisse ouverte, fond initial affiché |
+| « Encaisser » un abonnement en espèces | accueil | Le paiement apparaît dans les mouvements de la caisse |
+| Retrait de 10 000 « Remise en banque » ; puis retrait de 1 000 000 | accueil | Le premier passe ; le second est refusé (« la caisse ne contient que… ») |
+| « Compter et clôturer » avec un montant différent du théorique, sans explication | accueil | Refusé : l'écart doit être expliqué |
+| Admin → « Caisse » → « Clôtures à valider » → valider | gerant | Caisse validée ; impossible de valider sa propre clôture (sauf l'admin) |
+| « Détail » → « Z de caisse (PDF) » | gerant, compta | PDF : synthèse, mouvements, écart, signatures |
+| Admin → « Dépenses » → nouvelle dépense en espèces avec photo de la facture | gerant, compta | Dépense au journal avec justificatif ; sortie de caisse si une caisse est ouverte |
+| Annuler cette dépense (motif obligatoire) | gerant | Barrée ; le montant revient dans la caisse ouverte (contre-passation) |
+| Joindre un fichier texte renommé en .pdf | gerant | Refusé : seul le contenu réel compte |
+| Caisse → réglage « Refuser toute opération en espèces… » | gerant | Sans caisse ouverte, l'encaissement en espèces est refusé |
+
+Le comptable consulte caisses, Z et exports mais n'ouvre ni ne clôture la caisse : il contrôle, il n'opère pas.
+
 ## WhatsApp, SMS et renouvellement en un clic
 
 Les messages sont **simulés** en local : ils s'affichent dans le terminal de `pnpm dev` (`[whatsapp:dev]`, `[sms:dev]`). Un numéro se terminant par `0000` simule un échec définitif.

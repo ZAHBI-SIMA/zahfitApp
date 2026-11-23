@@ -5,6 +5,7 @@ import { BusinessError } from "@/lib/errors";
 import { formatXof } from "@/lib/format";
 import type { PaymentKind, Prisma } from "@/lib/generated/prisma/client";
 import { checkbox, optionalText } from "@/lib/validation";
+import { recordCashMovement } from "@/modules/cash/cash.service";
 import { addDays } from "@/modules/subscriptions/dates";
 
 type Actor = { tenantId: string; userId: string | null };
@@ -40,14 +41,15 @@ export async function netPaid(tx: Tx, subscriptionId: string, until?: Date): Pro
 /** Verrouille une ligne jusqu'à la fin de la transaction (encaissements simultanés). */
 export async function lockRow(
   tx: Tx,
-  table: "payments" | "subscriptions" | "members" | "class_sessions",
+  table: "payments" | "subscriptions" | "members" | "class_sessions" | "cash_sessions",
   id: string,
 ) {
   // Noms de table en dur (jamais interpolés) : aucune injection possible.
   if (table === "payments") await tx.$executeRaw`SELECT 1 FROM payments WHERE id = ${id}::uuid FOR UPDATE`;
   else if (table === "subscriptions") await tx.$executeRaw`SELECT 1 FROM subscriptions WHERE id = ${id}::uuid FOR UPDATE`;
   else if (table === "members") await tx.$executeRaw`SELECT 1 FROM members WHERE id = ${id}::uuid FOR UPDATE`;
-  else await tx.$executeRaw`SELECT 1 FROM class_sessions WHERE id = ${id}::uuid FOR UPDATE`;
+  else if (table === "class_sessions") await tx.$executeRaw`SELECT 1 FROM class_sessions WHERE id = ${id}::uuid FOR UPDATE`;
+  else await tx.$executeRaw`SELECT 1 FROM cash_sessions WHERE id = ${id}::uuid FOR UPDATE`;
 }
 
 // --- Reçus -------------------------------------------------------------------
@@ -147,6 +149,14 @@ export async function refundPayment(
     },
   });
   const receipt = await issueReceipt(tx, actor.tenantId, refund);
+  if (original.method === "CASH") {
+    await recordCashMovement(tx, actor, {
+      kind: "REFUND",
+      amountXof: -amount,
+      label: `${receipt.number} — ${input.reason}`,
+      paymentId: refund.id,
+    });
+  }
   await audit(tx, {
     tenantId: actor.tenantId,
     actorUserId: actor.userId,

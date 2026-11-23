@@ -94,6 +94,7 @@ afterAll(async () => {
   await owner.message.deleteMany({ where });
   await owner.renewalLink.deleteMany({ where });
   await owner.notification.deleteMany({ where });
+  await owner.cashMovement.deleteMany({ where }); // mouvements de caisse des paiements en espèces
   await owner.receipt.deleteMany({ where });
   await owner.payment.deleteMany({ where });
   await owner.subscription.updateMany({ where, data: { previousId: null } });

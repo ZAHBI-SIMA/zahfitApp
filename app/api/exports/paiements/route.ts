@@ -1,4 +1,5 @@
 import { audit } from "@/lib/audit";
+import { csvCell as cell } from "@/lib/csv";
 import { withTenant } from "@/lib/db";
 import { formatDateTime } from "@/lib/format";
 import { PAYMENT_METHOD_LABELS } from "@/lib/labels";
@@ -6,12 +7,6 @@ import { can } from "@/lib/rbac/permissions";
 import { getTenantContext } from "@/lib/session";
 import { listPayments, parsePeriod, periodRange } from "@/modules/payments/payments.service";
 import { isoDate, todayCalendar } from "@/modules/subscriptions/dates";
-
-/** Cellule CSV : guillemets seulement si nécessaire (séparateur, guillemet, retour ligne). */
-const cell = (value: unknown) => {
-  const s = value === null || value === undefined ? "" : String(value);
-  return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
 
 /**
  * Export comptable des transactions confirmées. CSV « ; » + BOM UTF-8 :

@@ -43,6 +43,15 @@ describe("Périmètre de chaque rôle (section 4)", () => {
     expect(can("ACCOUNTANT", "access.scan")).toBe(false);
   });
 
+  it("caisse : l'accueil la tient, le gérant valide, le comptable contrôle sans opérer", () => {
+    expect(can("RECEPTIONIST", "cash.operate")).toBe(true);
+    expect(can("RECEPTIONIST", "cash.manage")).toBe(false);
+    expect(can("MANAGER", "cash.manage")).toBe(true);
+    expect(can("ACCOUNTANT", "cash.operate")).toBe(false);
+    expect(can("ACCOUNTANT", "cash.manage")).toBe(false);
+    expect(can("COACH", "cash.operate")).toBe(false);
+  });
+
   it("gérant : gestion commerciale et financière", () => {
     for (const p of ["plans.manage", "payments.read", "finance.reports.read"] as const) {
       expect(can("MANAGER", p), p).toBe(true);
