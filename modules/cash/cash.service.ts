@@ -73,7 +73,7 @@ export async function sessionBalance(tx: Tx, session: { id: string; openingFloat
 export async function recordCashMovement(
   tx: Tx,
   actor: Actor,
-  input: { kind: CashMovementKind; amountXof: number; label: string; paymentId?: string; expenseId?: string },
+  input: { kind: CashMovementKind; amountXof: number; label: string; paymentId?: string; expenseId?: string; saleId?: string },
 ) {
   const session = await openSession(tx);
   if (session) {
@@ -100,6 +100,7 @@ export async function recordCashMovement(
       label: input.label.slice(0, 200),
       paymentId: input.paymentId,
       expenseId: input.expenseId,
+      saleId: input.saleId,
       createdById: actor.userId,
     },
   });
@@ -239,6 +240,8 @@ export const CASH_MOVEMENT_LABELS: Record<CashMovementKind, string> = {
   EXPENSE_VOID: "Dépense annulée",
   DEPOSIT: "Apport",
   WITHDRAWAL: "Retrait",
+  SALE: "Vente boutique",
+  SALE_VOID: "Vente annulée",
 };
 
 async function userNames(tx: Tx, ids: (string | null | undefined)[]) {

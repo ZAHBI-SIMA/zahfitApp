@@ -7,7 +7,9 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "tsx prisma/seed.ts",
+    // Condition « react-server » : le seed s'exécute comme le serveur Next
+    // (les modules marqués `server-only` sont alors importables).
+    seed: "tsx --conditions=react-server prisma/seed.ts",
   },
   datasource: {
     url: process.env.MIGRATE_DATABASE_URL ?? "",

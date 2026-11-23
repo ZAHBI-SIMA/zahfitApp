@@ -27,6 +27,9 @@ export const PERMISSIONS = [
   "expenses.manage",
   "cash.operate", // ouvrir, compter et clôturer la caisse ; apports et retraits
   "cash.manage", // valider les clôtures de caisse, réglages de caisse
+  // Boutique
+  "shop.sell", // vendre au comptoir
+  "shop.manage", // catalogue, stock, annulation de vente
   // Exploitation
   "access.scan", // contrôle d'accès QR
   "classes.read",
@@ -90,6 +93,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "expenses.manage",
     "cash.operate",
     "cash.manage",
+    "shop.sell",
+    "shop.manage",
     "access.scan",
     "classes.read",
     "classes.manage",
@@ -110,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "payments.read",
     "payments.collect",
     "cash.operate",
+    "shop.sell",
     "access.scan",
     "classes.read",
     "bookings.manage",

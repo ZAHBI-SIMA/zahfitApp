@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { PageHeader, UpcomingList } from "@/components/shell/page-header";
+import { RenewOnlineButton } from "@/components/members/member-space-forms";
+import { PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { withTenant } from "@/lib/db";
 import { formatDate, formatXof } from "@/lib/format";
@@ -10,6 +11,7 @@ import { getMemberSubscriptions } from "@/modules/subscriptions/subscriptions.se
 import { unreadCount } from "@/modules/notifications/notifications.service";
 import Link from "next/link";
 import { statusVariant } from "@/components/subscriptions/subscription-panel";
+import { activeOnlineProvider } from "@/modules/payments/providers";
 
 export const metadata: Metadata = { title: "Mon espace" };
 
@@ -38,6 +40,9 @@ export default async function MemberHome() {
     .flatMap((s) => s.payments.map((p) => ({ ...p, planName: s.planName })))
     .filter((p) => p.status === "SUCCEEDED" && p.receipt)
     .reverse();
+  // Renouvellement en ligne : un abonnement déjà payé à reconduire, et un prestataire actif.
+  const canRenewOnline =
+    activeOnlineProvider() !== null && subs.some((s) => !["CANCELLED", "PENDING_PAYMENT"].includes(s.status));
 
   return (
     <>
@@ -88,6 +93,15 @@ export default async function MemberHome() {
         )}
       </section>
 
+      {canRenewOnline && (
+        <div className="-mt-3 mb-6">
+          <RenewOnlineButton label={current.some((s) => s.effective === "ACTIVE") ? "Renouveler en ligne" : "Reprendre mon abonnement en ligne"} />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Même formule, à la suite de l&apos;abonnement en cours : aucun jour perdu. Paiement Mobile Money.
+          </p>
+        </div>
+      )}
+
       {subs.length > 0 && (
         <section className="mb-6 rounded-xl border bg-card p-5" aria-labelledby="historique">
           <h2 id="historique" className="mb-3 text-sm font-medium">
@@ -127,11 +141,16 @@ export default async function MemberHome() {
         </section>
       )}
 
-      <UpcomingList
-        items={[
-          { sprint: 11, label: "Renouveler en ligne depuis mon espace" },
-        ]}
-      />
+      <nav aria-label="Raccourcis" className="grid gap-3 sm:grid-cols-2">
+        <Link href="/member/historique" className="rounded-xl border bg-card p-4 text-sm hover:border-brand">
+          <span className="font-medium">Mon historique</span>
+          <span className="block text-xs text-muted-foreground">Paiements, achats boutique, passages, cours suivis</span>
+        </Link>
+        <Link href="/member/profil" className="rounded-xl border bg-card p-4 text-sm hover:border-brand">
+          <span className="font-medium">Contacter la salle</span>
+          <span className="block text-xs text-muted-foreground">Téléphone, WhatsApp, horaires et préférences de messages</span>
+        </Link>
+      </nav>
     </>
   );
 }

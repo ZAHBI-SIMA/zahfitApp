@@ -113,6 +113,22 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## Boutique, statistiques et espace adhérent
+
+`pnpm db:seed` crée une boutique de démonstration (eau, boisson énergétique, barre protéinée, gourde, location de serviette).
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Accueil → « Boutique » → ajouter 2 eaux et 1 barre → « Encaisser » en espèces | accueil | Vente VTE-… enregistrée, lien « Imprimer le ticket » (PDF 80 mm), stock décrémenté |
+| Même vente avec le code adhérent `ADH-000001` | accueil | L'achat apparaît dans l'historique de cet adhérent |
+| Panier supérieur au stock disponible | accueil | Bouton « + » bloqué ; côté serveur : « Stock insuffisant » |
+| Admin → « Boutique » → « Nouveau produit », puis « Réceptionner » 12 unités | gerant | Produit créé à 0, puis 12 en stock (mouvement « Réception ») |
+| Ajuster −1 « Casse » | gerant | Stock 11, mouvement « Ajustement » avec motif |
+| « Historique des ventes » → annuler une vente | gerant | Articles remis en stock ; en espèces, la somme sort de la caisse ouverte |
+| Admin → « Statistiques » | admin, gerant, compta | Indicateurs comparés à la période précédente, recettes par formule, cours et produits les plus vendus, cohortes |
+| Espace adhérent → « Renouveler en ligne » | adherent | Redirection vers le paiement simulé ; abonnement prolongé à la suite de l'actuel |
+| Espace adhérent → « Historique » / « Mon profil » | adherent | Paiements et reçus, achats (tickets), passages, cours ; préférences WhatsApp/SMS/e-mail et coordonnées de la salle |
+
 ## Caisse et dépenses
 
 La caisse ne concerne que les **espèces** : les paiements Mobile Money n'y entrent pas.

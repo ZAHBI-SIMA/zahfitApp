@@ -19,6 +19,7 @@ import { createMember } from "@/modules/members/members.service";
 import { createPlan } from "@/modules/plans/plans.service";
 import { addDays, todayCalendar } from "@/modules/subscriptions/dates";
 import { assignSubscription, recordManualPayment } from "@/modules/subscriptions/subscriptions.service";
+import { createProduct, productSchema, restockProduct } from "@/modules/shop/shop.service";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error("Le seed de démonstration ne doit jamais tourner en production.");
@@ -200,6 +201,51 @@ async function seedPilotePlanning() {
   });
 }
 
+/** Boutique de démonstration : quelques articles et leur stock initial (via réception, traçable). */
+async function seedPiloteShop() {
+  const ctx = await auth.$context;
+  const admin = await ctx.internalAdapter.findUserByEmail("admin@pilote.zahfit.local");
+  if (!admin) return;
+  const adminId = admin.user.id;
+  const tenant = await withPlatform(adminId, (tx) => tx.tenant.findUnique({ where: { slug: "pilote-cocody" } }));
+  if (!tenant) return;
+  const actor = { tenantId: tenant.id, userId: adminId };
+
+  await withTenant(tenant.id, adminId, async (tx) => {
+    if ((await tx.product.count()) > 0) return; // déjà initialisé
+    const items = [
+      { name: "Eau minérale 50 cl", category: "Boissons", price: 300, cost: 150, stock: 48 },
+      { name: "Boisson énergétique", category: "Boissons", price: 1_000, cost: 600, stock: 24 },
+      { name: "Barre protéinée", category: "Nutrition", price: 1_500, cost: 900, stock: 20 },
+      { name: "Gourde ZAHFIT", category: "Accessoires", price: 3_000, cost: 1_800, stock: 6 },
+      { name: "Location de serviette", category: "Services", price: 500, cost: null, stock: 0 },
+    ];
+    for (const item of items) {
+      const product = await createProduct(
+        tx,
+        actor,
+        productSchema.parse({
+          name: item.name,
+          category: item.category,
+          priceXof: String(item.price),
+          costXof: item.cost === null ? "" : String(item.cost),
+          lowStockThreshold: "5",
+          ...(item.stock > 0 ? { trackStock: "on" } : {}),
+          isActive: "on",
+        }),
+      );
+      if (item.stock > 0) {
+        await restockProduct(tx, actor, {
+          productId: product.id,
+          quantity: item.stock,
+          unitCostXof: item.cost,
+          reason: "Stock initial (démo)",
+        });
+      }
+    }
+  });
+}
+
 async function main() {
   const superAdminId = await ensureUser(ACCOUNTS[0].email, ACCOUNTS[0].name, "SUPER_ADMIN");
 
@@ -223,6 +269,7 @@ async function main() {
 
   await seedPiloteCatalog();
   await seedPilotePlanning();
+  await seedPiloteShop();
   console.info(
     `Seed terminé : ${TENANTS.length} salles, ${ACCOUNTS.length} comptes, formules et planning de démonstration.`,
   );
