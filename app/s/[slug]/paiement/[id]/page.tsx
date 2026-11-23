@@ -36,7 +36,7 @@ async function PaymentStatus({ params }: { params: Promise<{ slug: string; id: s
         amountXof: true,
         receipt: { select: { number: true } },
         member: { select: { firstName: true } },
-        subscription: { select: { planId: true, planName: true, startDate: true, endDate: true } },
+        subscription: { select: { planId: true, planName: true, startDate: true, endDate: true, previousId: true } },
       },
     }),
   );
@@ -56,9 +56,12 @@ async function PaymentStatus({ params }: { params: Promise<{ slug: string; id: s
     );
   }
   if (payment.status === "SUCCEEDED") {
+    const renewal = Boolean(payment.subscription?.previousId);
     return (
       <main className={box}>
-        <h1 className="text-2xl font-semibold">Bienvenue {payment.member.firstName} !</h1>
+        <h1 className="text-2xl font-semibold">
+          {renewal ? "Merci" : "Bienvenue"} {payment.member.firstName} !
+        </h1>
         <p>
           Paiement de <strong>{formatXof(payment.amountXof)}</strong> confirmé
           {payment.receipt && <> — reçu {payment.receipt.number}</>}.
@@ -70,7 +73,9 @@ async function PaymentStatus({ params }: { params: Promise<{ slug: string; id: s
           </p>
         )}
         <p className="text-sm text-muted-foreground">
-          Votre reçu et un lien pour créer votre mot de passe vous ont été envoyés par e-mail.
+          {renewal
+            ? "Votre abonnement est renouvelé ; le reçu est disponible dans votre espace."
+            : "Votre reçu et un lien pour créer votre mot de passe vous ont été envoyés par e-mail."}
         </p>
         <Link href="/connexion" className="text-sm text-brand hover:underline">
           Accéder à mon espace

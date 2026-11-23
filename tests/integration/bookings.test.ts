@@ -132,6 +132,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const where = { tenantId: A.tenantId };
+  await owner.message.deleteMany({ where: { ...where, fallbackOfId: { not: null } } });
+  await owner.message.deleteMany({ where });
+  await owner.renewalLink.deleteMany({ where });
   await owner.notification.deleteMany({ where });
   await owner.booking.deleteMany({ where });
   await owner.classSession.deleteMany({ where });

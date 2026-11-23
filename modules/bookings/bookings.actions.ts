@@ -13,7 +13,7 @@ import {
   markAttendance,
   updateBookingSettings,
 } from "@/modules/bookings/bookings.service";
-import { flushEmailsQuietly, markAllRead } from "@/modules/notifications/notifications.service";
+import { flushOutboxQuietly, markAllRead } from "@/modules/notifications/notifications.service";
 
 const idField = (label: string) => z.uuid({ error: `${label} introuvable.` });
 
@@ -40,7 +40,7 @@ export async function bookOwnAction(_prev: FormState, formData: FormData): Promi
         { byStaff: false },
       );
     });
-    await flushEmailsQuietly(ctx.tenant.id);
+    await flushOutboxQuietly(ctx.tenant.id);
     return ok(
       booking.status === "CONFIRMED"
         ? "Place réservée."
@@ -63,7 +63,7 @@ export async function cancelOwnAction(_prev: FormState, formData: FormData): Pro
         memberId,
       });
     });
-    await flushEmailsQuietly(ctx.tenant.id);
+    await flushOutboxQuietly(ctx.tenant.id);
     return ok("Réservation annulée.");
   } catch (error) {
     return toFormState(error);
@@ -115,7 +115,7 @@ export async function staffBookAction(_prev: FormState, formData: FormData): Pro
       );
       return { booking, name: `${member.firstName} ${member.lastName}` };
     });
-    await flushEmailsQuietly(ctx.tenant.id);
+    await flushOutboxQuietly(ctx.tenant.id);
     return ok(
       booking.status === "CONFIRMED"
         ? `${name} : place réservée.`
@@ -148,7 +148,7 @@ export async function staffCancelAction(_prev: FormState, formData: FormData): P
         reason: parsed.data.reason,
       }),
     );
-    await flushEmailsQuietly(ctx.tenant.id);
+    await flushOutboxQuietly(ctx.tenant.id);
     return ok(
       `Réservation annulée${promoted ? ` — ${promoted} personne(s) de la liste d'attente confirmée(s)` : ""}.`,
     );

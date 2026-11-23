@@ -5,6 +5,9 @@ import type { NotificationType } from "@/lib/generated/prisma/enums";
 import { sendMail } from "@/lib/mail";
 import { localParts } from "@/lib/timezone";
 import { addDaysIso } from "@/modules/classes/schedule";
+import { flushMessages, queueChannelMessage } from "@/modules/messaging/messaging.service";
+import { createRenewalLink } from "@/modules/messaging/renewal-links";
+import { CHANNEL_TEMPLATES } from "@/modules/messaging/templates";
 import { EMAIL_BY_DEFAULT, emailText, render, type TemplateData } from "@/modules/notifications/templates";
 
 /**
@@ -34,11 +37,22 @@ export async function notifyMember(
 ): Promise<string | null> {
   const member = await tx.member.findUnique({
     where: { id: memberId },
-    select: { userId: true, email: true, firstName: true, status: true, tenant: { select: { name: true } } },
+    select: {
+      id: true,
+      userId: true,
+      email: true,
+      phone: true,
+      firstName: true,
+      status: true,
+      consentWhatsapp: true,
+      consentSms: true,
+      tenant: { select: { name: true } },
+    },
   });
   if (!member || member.status === "ARCHIVED") return null;
   const wantsEmail = (options.email ?? EMAIL_BY_DEFAULT[type]) && !!member.email;
-  if (!member.userId && !wantsEmail) return null; // personne à prévenir
+  const mayText = !!CHANNEL_TEMPLATES[type] && (member.consentWhatsapp || member.consentSms);
+  if (!member.userId && !wantsEmail && !mayText) return null; // personne à prévenir
 
   if (options.dedupeKey) {
     const existing = await tx.notification.findUnique({
@@ -69,6 +83,8 @@ export async function notifyMember(
     },
     select: { id: true },
   });
+  // Canal payant (WhatsApp, sinon SMS) selon les réglages de la salle et les consentements.
+  await queueChannelMessage(tx, tenantId, created.id, member, type, full);
   return created.id;
 }
 
@@ -123,10 +139,14 @@ export async function flushEmails(tenantId: string | null, limit = 50) {
   return summary;
 }
 
-/** Envoi après une action : un échec d'e-mail ne fait jamais échouer l'action. */
-export async function flushEmailsQuietly(tenantId: string) {
+/**
+ * Envoi après une action (e-mails, WhatsApp, SMS) : un échec d'envoi ne
+ * fait jamais échouer l'action ; la tâche planifiée reprendra.
+ */
+export async function flushOutboxQuietly(tenantId: string) {
   try {
     await flushEmails(tenantId, 20);
+    await flushMessages(tenantId, 20);
   } catch {
     // La tâche planifiée reprendra.
   }
@@ -148,7 +168,10 @@ const notRenewed = (endDate: Date): Prisma.SubscriptionWhereInput => ({
  * J-7 et J-3 avant la fin, puis J0 (lendemain de la fin) : un seul envoi par
  * abonnement et par étape, et rien si l'adhérent a déjà renouvelé.
  */
-export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: string) {
+const alreadySent = async (tx: Tx, tenantId: string, dedupeKey: string) =>
+  !!(await tx.notification.findUnique({ where: { tenantId_dedupeKey: { tenantId, dedupeKey } }, select: { id: true } }));
+
+export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: string, now: Date = new Date()) {
   const date = (iso: string) => new Date(`${iso}T00:00:00Z`);
   let created = 0;
   for (const days of [7, 3]) {
@@ -158,13 +181,20 @@ export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: 
       select: { id: true, memberId: true, planName: true, endDate: true },
     });
     for (const s of subs) {
+      const dedupeKey = `sub-expiring-${days}:${s.id}`;
+      if (await alreadySent(tx, tenantId, dedupeKey)) continue;
       const id = await notifyMember(
         tx,
         tenantId,
         s.memberId,
         "SUBSCRIPTION_EXPIRING",
-        { planName: s.planName, endDate: formatDate(s.endDate), days },
-        { dedupeKey: `sub-expiring-${days}:${s.id}` },
+        {
+          planName: s.planName,
+          endDate: formatDate(s.endDate),
+          days,
+          renewPath: await createRenewalLink(tx, tenantId, s, now),
+        },
+        { dedupeKey },
       );
       if (id) created++;
     }
@@ -175,13 +205,15 @@ export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: 
     select: { id: true, memberId: true, planName: true, endDate: true },
   });
   for (const s of expired) {
+    const dedupeKey = `sub-expired:${s.id}`;
+    if (await alreadySent(tx, tenantId, dedupeKey)) continue;
     const id = await notifyMember(
       tx,
       tenantId,
       s.memberId,
       "SUBSCRIPTION_EXPIRED",
-      { planName: s.planName, endDate: formatDate(s.endDate) },
-      { dedupeKey: `sub-expired:${s.id}` },
+      { planName: s.planName, endDate: formatDate(s.endDate), renewPath: await createRenewalLink(tx, tenantId, s, now) },
+      { dedupeKey },
     );
     if (id) created++;
   }
@@ -196,10 +228,11 @@ export async function runAllNotifications(now = new Date()) {
   let reminders = 0;
   for (const t of tenants) {
     const today = localParts(now, t.timezone).date;
-    reminders += await withDbContext({ tenantId: t.id }, (tx) => runSubscriptionReminders(tx, t.id, today));
+    reminders += await withDbContext({ tenantId: t.id }, (tx) => runSubscriptionReminders(tx, t.id, today, now));
   }
   const emails = await flushEmails(null, 200);
-  return { tenants: tenants.length, reminders, emails };
+  const messages = await flushMessages(null, 200);
+  return { tenants: tenants.length, reminders, emails, messages };
 }
 
 // --- Notifications de l'adhérent ---------------------------------------------

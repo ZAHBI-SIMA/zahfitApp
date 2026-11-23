@@ -44,6 +44,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/paiements", label: "Paiements", icon: "wallet", permission: "payments.read" },
     { href: "/admin/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/admin/acces", label: "Fréquentation", icon: "qr", permission: "access.scan" },
+    { href: "/admin/messages", label: "Messages", icon: "bell", permission: "tenant.settings.manage" },
     { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", plannedSprint: 11 },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },

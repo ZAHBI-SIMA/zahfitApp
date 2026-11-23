@@ -113,6 +113,20 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## WhatsApp, SMS et renouvellement en un clic
+
+Les messages sont **simulés** en local : ils s'affichent dans le terminal de `pnpm dev` (`[whatsapp:dev]`, `[sms:dev]`). Un numéro se terminant par `0000` simule un échec définitif.
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| « Messages » → cocher WhatsApp et SMS → Enregistrer | admin | Canaux activés (le gérant voit l'état sans pouvoir le modifier) |
+| Fiche d'un adhérent → cocher « WhatsApp », puis annuler une séance où il est inscrit | admin, gerant | Dans la console : `[whatsapp:dev] … zahfit_seance_annulee` ; ligne « Séance annulée » dans « Messages » |
+| Adhérent avec SMS seulement | admin | Même scénario : SMS avec un lien `/desinscription/…` |
+| Ouvrir le lien de désinscription, « Confirmer la désinscription » | — | « C'est noté » ; case SMS décochée sur la fiche, trace dans l'historique |
+| Abonnement qui se termine dans 7 jours, puis `GET /api/cron/notifications` (avec `CRON_SECRET`) | — | Rappel avec un lien `/s/pilote-cocody/renouveler/…` |
+| Ouvrir ce lien → « Payer … par Mobile Money » → « Simuler un paiement réussi » | — | « Merci … ! » ; nouvel abonnement à la suite de l'actuel ; le lien affiche ensuite « déjà payé » |
+| Tableau de bord Super Admin | superadmin | Tableau « WhatsApp et SMS ce mois-ci » : volumes et coût par salle |
+
 ## Inscription et paiement en ligne (sans compte)
 
 Le prestataire est **simulé** (`PAYMENT_PROVIDER="sandbox"`) : aucun argent réel ne circule, et le simulateur est désactivé en production.

@@ -178,6 +178,9 @@ model Tenant {
   /// Réservations : ouverture N jours avant la séance, annulation libre jusqu'à N heures avant
   bookingOpenDays     Int     @default(7) @map("booking_open_days")
   bookingCancelHours  Int     @default(2) @map("booking_cancel_hours")
+  /// Canaux payants activés par la salle (coût par message)
+  whatsappEnabled     Boolean @default(false) @map("whatsapp_enabled")
+  smsEnabled          Boolean @default(false) @map("sms_enabled")
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -196,6 +199,8 @@ model Tenant {
   classSessions ClassSession[]
   bookings      Booking[]
   notifications Notification[]
+  messages      Message[]
+  renewalLinks  RenewalLink[]
 
   @@map("tenants")
 }
@@ -293,6 +298,7 @@ model Subscription {
   plan     MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
   previous Subscription?  @relation("Renewal", fields: [previousId], references: [id], onDelete: Restrict)
   renewals Subscription[] @relation("Renewal")
+  renewalLinks RenewalLink[] @relation("RenewalLinkSource")
   payments Payment[]
   accessLogs AccessLog[]
 
@@ -425,6 +431,8 @@ model Member {
   accessLogs    AccessLog[]
   bookings      Booking[]
   notifications Notification[]
+  messages      Message[]
+  renewalLinks  RenewalLink[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, badgeHash])
@@ -778,11 +786,92 @@ model Notification {
   createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
   tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member Member? @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member   Member?   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  messages Message[]
 
   @@unique([tenantId, dedupeKey])
   @@index([userId, readAt, createdAt])
   @@index([emailStatus, createdAt])
   @@map("notifications")
+}
+
+// --- WhatsApp et SMS (Sprint 9) ----------------------------------------------
+
+enum MessageChannel {
+  WHATSAPP
+  SMS
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Journal des envois WhatsApp / SMS (et file d'attente du worker). Le
+/// numéro complet est effacé une fois le message parvenu à son statut final.
+model Message {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  notificationId    String?        @map("notification_id") @db.Uuid
+  memberId          String?        @map("member_id") @db.Uuid
+  channel           MessageChannel
+  provider          String
+  /// Numéro E.164 (effacé après statut final) et sa version masquée (conservée)
+  toPhone           String?        @map("to_phone")
+  toMasked          String         @map("to_masked")
+  /// Modèle WhatsApp approuvé par Meta (ou gabarit SMS)
+  template          String
+  variables         Json
+  body              String
+  status            MessageStatus  @default(QUEUED)
+  providerMessageId String?        @map("provider_message_id")
+  error             String?
+  attempts          Int            @default(0)
+  /// Coût facturé par le prestataire, en FCFA
+  costXof           Int            @default(0) @map("cost_xof")
+  /// SMS de secours : message WhatsApp d'origine
+  fallbackOfId      String?        @unique @map("fallback_of_id") @db.Uuid
+  sentAt            DateTime?      @map("sent_at") @db.Timestamptz(3)
+  deliveredAt       DateTime?      @map("delivered_at") @db.Timestamptz(3)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  member       Member?       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  fallbackOf   Message?      @relation("Fallback", fields: [fallbackOfId], references: [id], onDelete: SetNull)
+  fallback     Message?      @relation("Fallback")
+
+  @@unique([provider, providerMessageId])
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@map("messages")
+}
+
+/// Lien de renouvellement en un clic : jeton aléatoire dont seule l'empreinte
+/// est stockée ; à usage unique (consommé au paiement confirmé), expirant.
+model RenewalLink {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  memberId              String    @map("member_id") @db.Uuid
+  /// Abonnement qui arrive à échéance (formule proposée au renouvellement)
+  subscriptionId        String    @map("subscription_id") @db.Uuid
+  tokenHash             String    @unique @map("token_hash")
+  expiresAt             DateTime  @map("expires_at") @db.Timestamptz(3)
+  /// Abonnement créé par ce lien (en attente puis payé)
+  renewalSubscriptionId String?   @map("renewal_subscription_id") @db.Uuid
+  usedAt                DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation("RenewalLinkSource", fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, subscriptionId])
+  @@index([renewalSubscriptionId])
+  @@map("renewal_links")
 }

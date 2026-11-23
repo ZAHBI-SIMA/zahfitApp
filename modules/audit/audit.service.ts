@@ -32,6 +32,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   "booking.create": "Réservation d'une séance",
   "booking.cancel": "Annulation d'une réservation",
   "tenant.booking.update": "Réglages des réservations",
+  "tenant.messaging.update": "Réglages WhatsApp et SMS",
+  "member.consent.optout": "Désinscription WhatsApp / SMS",
   "staff.invite": "Invitation d'un membre de l'équipe",
   "staff.role_change": "Changement de rôle",
   "staff.disable": "Désactivation d'un accès",

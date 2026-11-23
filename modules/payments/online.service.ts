@@ -8,6 +8,7 @@ import { createMember } from "@/modules/members/members.service";
 import { phoneField } from "@/modules/members/members.schema";
 import { issueReceipt, lockRow, netPaid } from "@/modules/payments/payments.service";
 import { getProvider, type PaymentProvider, type ProviderStatus } from "@/modules/payments/providers";
+import { findRenewalLink } from "@/modules/messaging/renewal-links";
 import { todayCalendar } from "@/modules/subscriptions/dates";
 import { activateIfPaid, assignSubscription, cancelSubscription } from "@/modules/subscriptions/subscriptions.service";
 
@@ -126,31 +127,55 @@ export async function startOnlineSignup(
     }
     subscription ??= await assignSubscription(tx, actor, { memberId: member.id, planId: input.planId, startDate: null }, today);
 
-    const balance = subscription.priceXof - (await netPaid(tx, subscription.id));
-    if (balance <= 0) return { subscription, member, payment: null };
-
-    const payment = await tx.payment.create({
-      data: {
-        tenantId,
-        memberId: member.id,
-        subscriptionId: subscription.id,
-        amountXof: balance,
-        method: "MOBILE_MONEY",
-        provider: provider.id,
-        status: "PENDING",
-        expiresAt: new Date(Date.now() + PAYMENT_TTL_MINUTES * 60_000),
-      },
-    });
-    await audit(tx, {
-      tenantId,
-      action: "payment.online.start",
-      entityType: "payment",
-      entityId: payment.id,
-      after: { provider: provider.id, amountXof: balance, subscriptionId: subscription.id },
-    });
-    return { subscription, member, payment };
+    return { subscription, member, payment: await createPendingPayment(tx, tenantId, member.id, subscription, provider.id) };
   });
+  return initiateCheckout(tenantId, prepared, provider, urls);
+}
 
+type Prepared = {
+  subscription: { id: string; planName: string };
+  member: { id: string; firstName: string; lastName: string; phone: string; email: string | null };
+  payment: { id: string; amountXof: number } | null;
+};
+
+/** Transaction PENDING pour le solde de l'abonnement (null si déjà payé). */
+async function createPendingPayment(
+  tx: Tx,
+  tenantId: string,
+  memberId: string,
+  subscription: { id: string; priceXof: number },
+  providerId: string,
+) {
+  const balance = subscription.priceXof - (await netPaid(tx, subscription.id));
+  if (balance <= 0) return null;
+  const payment = await tx.payment.create({
+    data: {
+      tenantId,
+      memberId,
+      subscriptionId: subscription.id,
+      amountXof: balance,
+      method: "MOBILE_MONEY",
+      provider: providerId,
+      status: "PENDING",
+      expiresAt: new Date(Date.now() + PAYMENT_TTL_MINUTES * 60_000),
+    },
+  });
+  await audit(tx, {
+    tenantId,
+    action: "payment.online.start",
+    entityType: "payment",
+    entityId: payment.id,
+    after: { provider: providerId, amountXof: balance, subscriptionId: subscription.id },
+  });
+  return payment;
+}
+
+async function initiateCheckout(
+  tenantId: string,
+  prepared: Prepared,
+  provider: PaymentProvider,
+  urls: (paymentId: string) => { returnUrl: string; notifyUrl: string },
+): Promise<{ paymentId: string | null; checkoutUrl: string | null; subscriptionId: string }> {
   if (!prepared.payment) return { paymentId: null, checkoutUrl: null, subscriptionId: prepared.subscription.id };
 
   // Appel au prestataire HORS transaction : une API lente ne bloque pas la base.
@@ -177,6 +202,50 @@ export async function startOnlineSignup(
       ? error
       : new BusinessError("Le service de paiement est indisponible. Réessayez dans un instant.");
   }
+}
+
+// --- Renouvellement en un clic ----------------------------------------------
+
+const LINK_ERRORS = {
+  unknown: "Ce lien de renouvellement n'est pas valide.",
+  expired: "Ce lien de renouvellement a expiré : passez à l'accueil ou attendez le prochain rappel.",
+  used: "Ce renouvellement est déjà payé. Merci !",
+} as const;
+
+/**
+ * Lien reçu par WhatsApp, SMS ou e-mail : même formule, nouvel abonnement
+ * à la suite de l'actuel, paiement Mobile Money. Le lien n'est consommé
+ * qu'au paiement CONFIRMÉ : après un échec, l'adhérent peut réessayer.
+ */
+export async function startRenewal(
+  tenantId: string,
+  token: string,
+  provider: PaymentProvider,
+  urls: (paymentId: string) => { returnUrl: string; notifyUrl: string },
+  now: Date = new Date(),
+) {
+  const actor = { tenantId, userId: null };
+  const prepared = await inTenant(tenantId, async (tx) => {
+    const { link, state } = await findRenewalLink(tx, token, now);
+    if (state !== "valid" || !link) throw new BusinessError(LINK_ERRORS[state as keyof typeof LINK_ERRORS]);
+    if (link.member.status !== "ACTIVE") throw new BusinessError("Contactez la salle pour renouveler votre abonnement.");
+    const plan = link.subscription.plan;
+    if (!plan.isActive) throw new BusinessError("Cette formule n'est plus proposée : contactez la salle.");
+
+    const member = await tx.member.findUniqueOrThrow({ where: { id: link.memberId } });
+    let subscription = link.renewalSubscriptionId
+      ? await tx.subscription.findUnique({ where: { id: link.renewalSubscriptionId } })
+      : null;
+    if (subscription && subscription.status !== "PENDING_PAYMENT") subscription = null;
+    // Un abonnement déjà en attente (saisi à l'accueil, ou essai précédent) est réutilisé.
+    subscription ??= await tx.subscription.findFirst({
+      where: { memberId: member.id, planId: plan.id, status: "PENDING_PAYMENT" },
+    });
+    subscription ??= await assignSubscription(tx, actor, { memberId: member.id, planId: plan.id, startDate: null }, todayCalendar(now));
+    await tx.renewalLink.update({ where: { id: link.id }, data: { renewalSubscriptionId: subscription.id } });
+    return { subscription, member, payment: await createPendingPayment(tx, tenantId, member.id, subscription, provider.id) };
+  });
+  return initiateCheckout(tenantId, prepared, provider, urls);
 }
 
 // --- Confirmation par le prestataire -----------------------------------------
@@ -216,7 +285,14 @@ export async function applyProviderStatus(
 
     await tx.payment.update({ where: { id: paymentId }, data: { status: "SUCCEEDED", paidAt: new Date() } });
     const receipt = await issueReceipt(tx, tenantId, payment);
-    if (payment.subscriptionId) await activateIfPaid(tx, actor, payment.subscriptionId);
+    if (payment.subscriptionId) {
+      await activateIfPaid(tx, actor, payment.subscriptionId);
+      // Usage unique : le lien de renouvellement qui a mené à ce paiement est consommé.
+      await tx.renewalLink.updateMany({
+        where: { renewalSubscriptionId: payment.subscriptionId, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+    }
     await audit(tx, {
       tenantId,
       action: "payment.online.confirmed",

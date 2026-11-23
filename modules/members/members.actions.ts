@@ -13,7 +13,7 @@ import {
 } from "@/modules/members/members.import";
 import { memberInputSchema, parseBasePath } from "@/modules/members/members.schema";
 import { createMember, setMemberArchived, updateMember } from "@/modules/members/members.service";
-import { flushEmailsQuietly, notifyMember } from "@/modules/notifications/notifications.service";
+import { flushOutboxQuietly, notifyMember } from "@/modules/notifications/notifications.service";
 
 export async function createMemberAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const basePath = parseBasePath(formData.get("basePath"));
@@ -30,7 +30,7 @@ export async function createMemberAction(_prev: FormState, formData: FormData): 
       return created;
     });
     memberId = member.id;
-    await flushEmailsQuietly(ctx.tenant.id);
+    await flushOutboxQuietly(ctx.tenant.id);
   } catch (error) {
     return toFormState(error);
   }

@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { toFormState } from "@/lib/actions";
 import { withDbContext } from "@/lib/db";
 import { parseForm, type FormState } from "@/lib/validation";
-import { onlineSignupSchema, resolvePublicTenant, startOnlineSignup } from "@/modules/payments/online.service";
+import {
+  onlineSignupSchema,
+  resolvePublicTenant,
+  startOnlineSignup,
+  startRenewal,
+} from "@/modules/payments/online.service";
 import { activeOnlineProvider, isSandboxEnabled, signSandboxPayload } from "@/modules/payments/providers";
 
 const appUrl = () => (process.env.APP_URL || process.env.BETTER_AUTH_URL || "http://localhost:3100").replace(/\/$/, "");
@@ -25,6 +30,30 @@ export async function startOnlineSignupAction(_prev: FormState, formData: FormDa
 
     const base = appUrl();
     const result = await startOnlineSignup(tenantId, parsed.data, provider, (paymentId) => ({
+      returnUrl: `${base}/s/${slug}/paiement/${paymentId}`,
+      notifyUrl: `${base}/api/webhooks/paiements/${provider.id}`,
+    }));
+    destination = result.checkoutUrl ?? `/s/${slug}`;
+  } catch (error) {
+    return toFormState(error);
+  }
+  redirect(destination);
+}
+
+/** Lien de renouvellement en un clic : crée la tentative, puis redirige vers le prestataire. */
+export async function startRenewalAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const slug = String(formData.get("slug") ?? "");
+  const token = String(formData.get("token") ?? "");
+  let destination: string;
+  try {
+    const tenantId = await resolvePublicTenant(slug);
+    if (!tenantId || !/^[A-Za-z0-9_-]{20,100}$/.test(token)) {
+      return { ok: false, message: "Ce lien de renouvellement n'est pas valide." };
+    }
+    const provider = activeOnlineProvider();
+    if (!provider) return { ok: false, message: "Le paiement en ligne n'est pas disponible : renouvelez à l'accueil." };
+    const base = appUrl();
+    const result = await startRenewal(tenantId, token, provider, (paymentId) => ({
       returnUrl: `${base}/s/${slug}/paiement/${paymentId}`,
       notifyUrl: `${base}/api/webhooks/paiements/${provider.id}`,
     }));

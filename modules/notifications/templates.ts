@@ -22,6 +22,8 @@ export type TemplateData = {
   amount?: string;
   receiptNumber?: string;
   memberCode?: string;
+  /** Lien de renouvellement en un clic (chemin relatif : /s/<salle>/renouveler/<jeton>) */
+  renewPath?: string;
 };
 
 export type Rendered = { title: string; body: string; link: string | null };
@@ -83,14 +85,18 @@ export function render(type: NotificationType, d: TemplateData): Rendered {
     case "SUBSCRIPTION_EXPIRING":
       return {
         title: `Votre abonnement se termine dans ${d.days} jours`,
-        body: `Votre abonnement ${d.planName} prend fin le ${d.endDate}. Renouvelez-le à l'accueil pour continuer sans interruption.`,
-        link: "/member",
+        body: `Votre abonnement ${d.planName} prend fin le ${d.endDate}. ${
+          d.renewPath ? "Renouvelez-le en un clic" : "Renouvelez-le à l'accueil"
+        } pour continuer sans interruption.`,
+        link: d.renewPath ?? "/member",
       };
     case "SUBSCRIPTION_EXPIRED":
       return {
         title: "Votre abonnement est arrivé à échéance",
-        body: `Votre abonnement ${d.planName} a pris fin le ${d.endDate}. Passez à l'accueil pour le renouveler.`,
-        link: "/member",
+        body: `Votre abonnement ${d.planName} a pris fin le ${d.endDate}. ${
+          d.renewPath ? "Renouvelez-le en un clic, ou passez à l'accueil." : "Passez à l'accueil pour le renouveler."
+        }`,
+        link: d.renewPath ?? "/member",
       };
     case "SUBSCRIPTION_ACTIVATED":
       return {
