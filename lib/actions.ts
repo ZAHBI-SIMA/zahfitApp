@@ -21,15 +21,27 @@ const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
  * active et non suspendue, 2FA pour les rôles sensibles, permission.
  * Un bouton masqué dans l'interface n'est jamais une protection suffisante.
  */
-export async function requireActionContext(permission: Permission, feature?: SaasFeature): Promise<TenantContext> {
+export async function requireActionContext(
+  permission: Permission,
+  feature?: SaasFeature,
+  options: { allowReadOnly?: boolean; allowSuspended?: boolean } = {},
+): Promise<TenantContext> {
   const ctx = await getTenantContext();
   if (!ctx) throw new ForbiddenError(permission);
-  if (ctx.tenant.status === "SUSPENDED") throw new BusinessError("L'accès à cette salle est suspendu.");
+  if (ctx.tenant.status === "SUSPENDED" && !options.allowSuspended) {
+    throw new BusinessError("L'accès à cette salle est suspendu.");
+  }
   if (enforce2FA() && requiresTwoFactor(ctx.role) && !ctx.user.twoFactorEnabled) {
     throw new BusinessError("Activez la double authentification pour effectuer cette action.");
   }
   requirePermission(ctx, permission);
   // Forfait : le module de la permission (ou celui demandé explicitement) doit être inclus.
+  // Impayé : le personnel consulte mais ne modifie plus (les adhérents gardent leurs actions).
+  if (ctx.billingStatus === "READ_ONLY" && !options.allowReadOnly && !permission.startsWith("self.")) {
+    throw new BusinessError(
+      "Espace en lecture seule : une facture ZAHFIT est impayée. Réglez-la dans Administration → Abonnement ZAHFIT.",
+    );
+  }
   const required = feature ?? PERMISSION_FEATURE[permission];
   if (required && !ctx.features.includes(required)) {
     throw new BusinessError(featureUnavailableMessage(required, ctx.plan.name));

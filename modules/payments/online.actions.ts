@@ -80,13 +80,24 @@ export async function simulatePaymentAction(formData: FormData): Promise<void> {
       select: { id: true, amountXof: true, tenant: { select: { slug: true } } },
     }),
   );
-  if (!payment) throw new Error("Transaction de test introuvable.");
+  // Facture ZahDigit réglée par une salle (même simulateur, même webhook).
+  const saas = payment
+    ? null
+    : await withDbContext({ platform: true }, (tx) =>
+        tx.saasPayment.findFirst({ where: { provider: "sandbox", providerRef }, select: { id: true, amountXof: true } }),
+      );
+  if (!payment && !saas) throw new Error("Transaction de test introuvable.");
 
-  const body = JSON.stringify({ eventId: randomUUID(), providerRef, status: outcome, amountXof: payment.amountXof });
+  const body = JSON.stringify({
+    eventId: randomUUID(),
+    providerRef,
+    status: outcome,
+    amountXof: payment?.amountXof ?? saas!.amountXof,
+  });
   await fetch(`${appUrl()}/api/webhooks/paiements/sandbox`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-zahfit-signature": signSandboxPayload(body) },
     body,
   });
-  redirect(`/s/${payment.tenant.slug}/paiement/${payment.id}`);
+  redirect(payment ? `/s/${payment.tenant.slug}/paiement/${payment.id}` : `/facturation?paiement=${saas!.id}`);
 }

@@ -14,6 +14,8 @@ type AppShellProps = {
   roleLabel?: string;
   /** Autres espaces accessibles avec le même compte (ex. admin → réception). */
   otherSpaces: Space[];
+  /** Bandeau d'alerte (ex. facture ZAHFIT en retard). */
+  alert?: { message: string; href?: string };
   children: ReactNode;
 };
 
@@ -68,6 +70,16 @@ export function AppShell(props: AppShellProps) {
           <ThemeToggle />
           <SignOutButton />
         </header>
+        {props.alert && (
+          <div role="alert" className="border-b border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm md:px-8">
+            {props.alert.message}{" "}
+            {props.alert.href && (
+              <Link href={props.alert.href} className="font-medium underline">
+                Régler maintenant
+              </Link>
+            )}
+          </div>
+        )}
         <main className="flex-1 px-4 py-6 md:px-8">{props.children}</main>
       </div>
     </div>

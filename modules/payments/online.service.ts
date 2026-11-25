@@ -12,6 +12,7 @@ import { findRenewalLink } from "@/modules/messaging/renewal-links";
 import { todayCalendar } from "@/modules/subscriptions/dates";
 import { activateIfPaid, assignSubscription, cancelSubscription } from "@/modules/subscriptions/subscriptions.service";
 import { assertTenantFeature, tenantHasFeature } from "@/modules/saas/saas.service";
+import { applySaasPaymentStatus, findSaasPaymentByRef } from "@/modules/billing/billing.service";
 
 /** Une tentative de paiement en ligne non confirmée expire au bout de 30 minutes. */
 export const PAYMENT_TTL_MINUTES = 30;
@@ -320,7 +321,11 @@ export async function processWebhook(providerId: string, rawBody: string, header
   if (!provider) return { outcome: "unknown_provider" as const };
   const event = await provider.verifyWebhook(rawBody, headers);
 
-  let stored: { eventRowId: string; payment: { id: string; tenantId: string } | null };
+  let stored: {
+    eventRowId: string;
+    payment: { id: string; tenantId: string } | null;
+    saas: { id: string; tenantId: string } | null;
+  };
   try {
     stored = await withDbContext({ platform: true }, async (tx) => {
       const row = await tx.paymentWebhookEvent.create({
@@ -337,7 +342,9 @@ export async function processWebhook(providerId: string, rawBody: string, header
         where: { provider: provider.id, providerRef: event.providerRef },
         select: { id: true, tenantId: true },
       });
-      return { eventRowId: row.id, payment };
+      // Sinon : règlement d'une facture ZahDigit par une salle (même prestataire, même webhook).
+      const saas = payment ? null : await findSaasPaymentByRef(tx, provider.id, event.providerRef);
+      return { eventRowId: row.id, payment, saas };
     });
   } catch (error) {
     // Même notification reçue deux fois (y compris en parallèle) : sans effet.
@@ -349,7 +356,14 @@ export async function processWebhook(providerId: string, rawBody: string, header
 
   const result = stored.payment
     ? await applyProviderStatus(stored.payment.tenantId, stored.payment.id, event.status, event.amountXof)
-    : { outcome: "unknown_payment" as const };
+    : stored.saas
+      ? {
+          outcome: (await applySaasPaymentStatus(stored.saas.id, event.status, event.amountXof)).outcome,
+          // Facture ZahDigit : pas de reçu adhérent à envoyer.
+          receiptId: undefined as string | undefined,
+          memberId: undefined as string | undefined,
+        }
+      : { outcome: "unknown_payment" as const };
 
   await withDbContext({ platform: true }, (tx) =>
     tx.paymentWebhookEvent.update({

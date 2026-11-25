@@ -217,6 +217,9 @@ model Tenant {
   sales              Sale[]
   saleLines          SaleLine[]
   saasPlan           SaasPlan            @relation(fields: [saasPlanId], references: [id], onDelete: Restrict)
+  billing            TenantSubscription?
+  saasInvoices       SaasInvoice[]
+  saasPayments       SaasPayment[]
 
   @@map("tenants")
 }
@@ -1199,4 +1202,108 @@ model SaasPlan {
   tenants Tenant[]
 
   @@map("saas_plans")
+}
+
+// ---------------------------------------------------------------------------
+// Facturation ZahDigit (Sprint 13)
+// ---------------------------------------------------------------------------
+
+/// Abonnement d'une salle à ZAHFIT. Retard : PAST_DUE → READ_ONLY → SUSPENDED (conditions dans modules/billing)
+enum SaasSubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  READ_ONLY
+  SUSPENDED
+  CANCELLED
+}
+
+model TenantSubscription {
+  id                 String                 @id @default(uuid(7)) @db.Uuid
+  tenantId           String                 @unique @map("tenant_id") @db.Uuid
+  status             SaasSubscriptionStatus
+  trialEndsOn        DateTime?              @map("trial_ends_on") @db.Date
+  /// Période en cours (facturée d'avance)
+  currentPeriodStart DateTime?              @map("current_period_start") @db.Date
+  currentPeriodEnd   DateTime?              @map("current_period_end") @db.Date
+  statusChangedAt    DateTime               @default(now()) @map("status_changed_at") @db.Timestamptz(3)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@map("tenant_subscriptions")
+}
+
+enum SaasInvoiceKind {
+  SETUP
+  MONTHLY
+}
+
+enum SaasInvoiceStatus {
+  OPEN
+  PAID
+  /// Annulée (erreur) : jamais supprimée
+  VOID
+}
+
+/// Facture ZahDigit → salle. Numéro continu sur toute la plateforme (ZD-000001)
+model SaasInvoice {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  number           String            @unique
+  kind             SaasInvoiceKind
+  /// Forfait FIGÉ à l'émission (un changement de prix ne modifie pas une facture émise)
+  planCode         String            @map("plan_code")
+  planName         String            @map("plan_name")
+  periodStart      DateTime?         @map("period_start") @db.Date
+  periodEnd        DateTime?         @map("period_end") @db.Date
+  amountXof        Int               @map("amount_xof")
+  status           SaasInvoiceStatus @default(OPEN)
+  issuedOn         DateTime          @map("issued_on") @db.Date
+  dueOn            DateTime          @map("due_on") @db.Date
+  paidAt           DateTime?         @map("paid_at") @db.Timestamptz(3)
+  paymentMethod    PaymentMethod?    @map("payment_method")
+  paymentReference String?           @map("payment_reference")
+  voidReason       String?           @map("void_reason")
+  /// Relances déjà envoyées (J-3, J0, J+1, J+7, J+15)
+  remindersSent    String[]          @default([]) @map("reminders_sent")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payments SaasPayment[]
+
+  @@unique([tenantId, kind, periodStart])
+  @@index([status, dueOn])
+  @@map("saas_invoices")
+}
+
+/// Paiement en ligne d'une facture ZahDigit par la salle (Mobile Money)
+model SaasPayment {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  invoiceId   String        @map("invoice_id") @db.Uuid
+  amountXof   Int           @map("amount_xof")
+  provider    String
+  providerRef String?       @map("provider_ref")
+  status      PaymentStatus @default(PENDING)
+  expiresAt   DateTime      @map("expires_at") @db.Timestamptz(3)
+  paidAt      DateTime?     @map("paid_at") @db.Timestamptz(3)
+  createdById String?       @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  invoice SaasInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerRef])
+  @@index([tenantId, createdAt])
+  @@map("saas_payments")
+}
+
+/// Compteurs de la plateforme, incrémentés sous verrou : numérotation sans trou
+model PlatformCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("platform_counters")
 }

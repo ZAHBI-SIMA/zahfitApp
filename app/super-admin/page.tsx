@@ -5,6 +5,7 @@ import { requireSuperAdmin } from "@/lib/session";
 import { PageHeader, StatCard, UpcomingList } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatXof } from "@/lib/format";
+import { platformDashboard } from "@/modules/billing/billing.service";
 import { platformMessagingCosts } from "@/modules/messaging/messaging.service";
 
 export const metadata: Metadata = { title: "Super Admin" };
@@ -27,6 +28,7 @@ export default async function SuperAdminHome() {
     }),
   );
   const active = tenants.filter((t) => t.status === "ACTIVE").length;
+  const kpi = await withPlatform(user.id, (tx) => platformDashboard(tx));
   const now = new Date();
   const costs = await platformMessagingCosts(
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
@@ -36,6 +38,36 @@ export default async function SuperAdminHome() {
   return (
     <>
       <PageHeader title="Plateforme ZAHFIT" description="Vue globale des salles clientes." />
+      <section aria-labelledby="activite" className="mb-6">
+        <h2 id="activite" className="mb-3 text-sm font-medium">
+          Activité ZahDigit (30 derniers jours)
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="MRR" value={formatXof(kpi.mrrXof)} hint={`${kpi.payingTenants} salle(s) payante(s)`} />
+          <StatCard label="Attrition" value={`${kpi.churnRate} %`} hint={`${kpi.churned} salle(s) perdue(s)`} />
+          <StatCard
+            label="Essais en cours"
+            value={kpi.trialing}
+            hint={`${kpi.pastDue} en retard · ${kpi.suspended} suspendue(s)`}
+          />
+          <StatCard
+            label="Encours ZahDigit"
+            value={formatXof(kpi.outstandingXof)}
+            hint={`Dont ${formatXof(kpi.overdueXof)} en retard`}
+          />
+          <StatCard
+            label="Transactions des salles"
+            value={formatXof(kpi.transactions.amountXof)}
+            hint={`${kpi.transactions.count} encaissement(s)`}
+          />
+          <StatCard
+            label="Réussite des paiements en ligne"
+            value={kpi.onlineSuccessRate === null ? "—" : `${kpi.onlineSuccessRate} %`}
+            hint="Adhérents (Mobile Money)"
+          />
+        </div>
+      </section>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Salles clientes" value={tenants.length} />
         <StatCard label="Salles actives" value={active} />
@@ -107,7 +139,6 @@ export default async function SuperAdminHome() {
       <div className="mt-6">
         <UpcomingList
           items={[
-            { sprint: 13, label: "Facturation ZahDigit : essais, factures, relances, suspension automatique" },
             { sprint: 14, label: "Support, onboarding guidé et mode « se connecter en tant que »" },
           ]}
         />

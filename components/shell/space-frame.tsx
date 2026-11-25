@@ -67,6 +67,16 @@ async function loadShell(space: Space) {
     ),
     userName: ctx.user.name,
     tenantName: ctx.tenant.name,
+    alert:
+      space !== "member" && (ctx.billingStatus === "PAST_DUE" || ctx.billingStatus === "READ_ONLY")
+        ? {
+            message:
+              ctx.billingStatus === "READ_ONLY"
+                ? "Espace en lecture seule : une facture ZAHFIT est impayée."
+                : "Une facture ZAHFIT est en retard de paiement.",
+            href: can(ctx.role, "billing.settings.manage") ? "/admin/facturation" : undefined,
+          }
+        : undefined,
     roleLabel: ROLE_LABELS[ctx.role],
     otherSpaces,
   };

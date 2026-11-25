@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { withUser } from "@/lib/db";
-import type { SaasFeature, TenantRole, TenantStatus } from "@/lib/generated/prisma/enums";
+import type { SaasFeature, SaasSubscriptionStatus, TenantRole, TenantStatus } from "@/lib/generated/prisma/enums";
 import { ROLE_PERMISSIONS, requiresTwoFactor, type Permission } from "@/lib/rbac/permissions";
 import { canAccessSpace, type TenantSpace } from "@/lib/rbac/spaces";
 
@@ -35,6 +35,8 @@ export type TenantContext = {
   /** Forfait ZAHFIT de la salle et modules qu'il inclut. */
   plan: { id: string; code: string; name: string };
   features: readonly SaasFeature[];
+  /** Abonnement ZAHFIT (null : salle sans facturation, ex. environnement de test). */
+  billingStatus: SaasSubscriptionStatus | null;
 };
 
 const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
@@ -76,6 +78,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
             slug: true,
             status: true,
             saasPlan: { select: { id: true, code: true, name: true, features: true } },
+            billing: { select: { status: true } },
           },
         },
       },
@@ -87,12 +90,13 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   const wanted = (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value;
   const active = memberships.find((m) => m.tenantId === wanted) ?? memberships[0];
 
-  const { saasPlan, ...tenant } = active.tenant;
+  const { saasPlan, billing, ...tenant } = active.tenant;
   return {
     user,
     tenant,
     plan: { id: saasPlan.id, code: saasPlan.code, name: saasPlan.name },
     features: saasPlan.features ?? [],
+    billingStatus: billing?.status ?? null,
     role: active.role,
     permissions: ROLE_PERMISSIONS[active.role],
     otherTenants: memberships

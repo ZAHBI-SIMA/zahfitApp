@@ -9,6 +9,7 @@ import {
   type TenantSettingsInput,
   type TenantUpdateInput,
 } from "@/modules/tenants/tenants.schema";
+import { startTenantBilling } from "@/modules/billing/billing.service";
 
 async function assertSlugAvailable(tx: Tx, slug: string, exceptId?: string) {
   const existing = await tx.tenant.findUnique({ where: { slug }, select: { id: true } });
@@ -57,6 +58,8 @@ export async function createTenant(tx: Tx, actorId: string, input: TenantCreateI
     },
   });
   await tx.tenantMembership.create({ data: { tenantId: tenant.id, userId: adminUserId, role: "ADMIN" } });
+  // Essai gratuit et facture d'installation (conditions : modules/billing/billing.rules.ts).
+  await startTenantBilling(tx, actorId, tenant.id);
   await audit(tx, {
     tenantId: tenant.id,
     actorUserId: actorId,

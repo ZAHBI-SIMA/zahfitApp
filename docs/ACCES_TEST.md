@@ -113,6 +113,22 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## Facturation ZahDigit
+
+Conditions (modifiables dans `modules/billing/billing.rules.ts`) : essai de 30 jours, factures payables sous 7 jours, lecture seule à J+7, suspension à J+15. La tâche quotidienne s'appelle avec `curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3100/api/cron/facturation`.
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Super Admin → « Nouvelle salle » (forfait Business) | superadmin | Salle en essai 30 jours + facture d'installation ZD-… (150 000 FCFA) |
+| Fiche de la salle → « Prolonger l'essai » | superadmin | Date de fin d'essai repoussée, tracée |
+| Administration → « Abonnement ZAHFIT » → « Payer … (Mobile Money) » → « Simuler un paiement réussi » | admin de la salle | Facture réglée ; page `/facturation` : « Merci : facture réglée » |
+| Facture impayée 8 jours après l'échéance, puis tâche quotidienne | — | Bandeau « Espace en lecture seule » ; toute modification refusée (les adhérents gardent leurs réservations) |
+| 16 jours de retard, puis tâche quotidienne | — | Salle suspendue ; `/salle-suspendue` propose « Régler l'abonnement ZAHFIT » ; le paiement rétablit l'accès |
+| Super Admin → « Facturation » → « Marquer réglée » (virement) ou « Annuler » | superadmin | Facture réglée ou annulée ; statut de la salle recalculé |
+| Super Admin → tableau de bord | superadmin | MRR, attrition, essais, encours, transactions des salles, réussite des paiements |
+
+Les salles existantes ont reçu un abonnement **actif** au déploiement, sans facture rétroactive.
+
 ## Forfaits SaaS
 
 `pnpm db:seed` place la salle pilote en **Premium** et la salle « Démo Fitness Plateau » en **Starter**.

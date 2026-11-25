@@ -37,6 +37,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/super-admin", label: "Tableau de bord", icon: "dashboard" },
     { href: "/super-admin/salles", label: "Salles clientes", icon: "building" },
     { href: "/super-admin/forfaits", label: "Forfaits SaaS", icon: "card" },
+    { href: "/super-admin/facturation", label: "Facturation", icon: "wallet" },
     { href: "/super-admin/audit", label: "Journal d'audit", icon: "shield" },
   ],
   admin: [
@@ -54,6 +55,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", feature: "ADVANCED_REPORTS" },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
     { href: "/admin/forfait", label: "Mon forfait", icon: "shield", permission: "tenant.settings.manage" },
+    { href: "/admin/facturation", label: "Abonnement ZAHFIT", icon: "wallet", permission: "billing.settings.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },
   ],
   reception: [

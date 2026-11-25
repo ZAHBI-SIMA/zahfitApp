@@ -22,12 +22,12 @@ async function SandboxCheckout({ params }: { params: Promise<{ ref: string }> })
   await connection();
   if (!isSandboxEnabled()) notFound();
   const providerRef = decodeURIComponent((await params).ref);
-  const payment = await withDbContext({ platform: true }, (tx) =>
-    tx.payment.findFirst({
-      where: { provider: "sandbox", providerRef, status: "PENDING" },
-      select: { amountXof: true, tenant: { select: { name: true } } },
-    }),
-  );
+  const payment = await withDbContext({ platform: true }, async (tx) => {
+    const where = { provider: "sandbox", providerRef, status: "PENDING" as const };
+    const select = { amountXof: true, tenant: { select: { name: true } } };
+    // Paiement d'un adhérent, ou facture ZahDigit réglée par une salle.
+    return (await tx.payment.findFirst({ where, select })) ?? (await tx.saasPayment.findFirst({ where, select }));
+  });
   if (!payment) notFound();
 
   return (

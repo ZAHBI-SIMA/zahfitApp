@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import * as z from "zod";
 import { PageHeader, StatCard } from "@/components/shell/page-header";
+import { ExtendTrialForm } from "@/components/billing/billing-forms";
+import { InvoiceList } from "@/components/billing/invoice-list";
 import { TenantPlanForm } from "@/components/saas/saas-forms";
 import { UsageMeter } from "@/components/saas/usage-meter";
 import { EditTenantForm, SuspendTenantForm } from "@/components/tenants/tenant-forms";
@@ -10,7 +12,10 @@ import { withPlatform } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ROLE_LABELS, TENANT_STATUS_LABELS } from "@/lib/labels";
 import { requireSuperAdmin } from "@/lib/session";
+import { SAAS_STATUS_LABELS } from "@/modules/billing/billing.rules";
+import { tenantBilling } from "@/modules/billing/billing.service";
 import { FEATURE_LABELS } from "@/modules/saas/features";
+import { todayCalendar } from "@/modules/subscriptions/dates";
 import { tenantUsage } from "@/modules/saas/saas.service";
 
 export const metadata: Metadata = { title: "Salle cliente" };
@@ -35,8 +40,9 @@ export default async function TenantDetailPage({ params, searchParams }: PagePro
     }),
   );
   if (!tenant) notFound();
-  const { usage, plans } = await withPlatform(user.id, async (tx) => ({
+  const { usage, plans, billing } = await withPlatform(user.id, async (tx) => ({
     usage: await tenantUsage(tx, tenant.id),
+    billing: await tenantBilling(tx, tenant.id),
     plans: await tx.saasPlan.findMany({
       orderBy: [{ sortOrder: "asc" }, { monthlyPriceXof: "asc" }],
       select: { id: true, name: true, monthlyPriceXof: true, isActive: true },
@@ -92,6 +98,30 @@ export default async function TenantDetailPage({ params, searchParams }: PagePro
           {/* key : le formulaire se reconstruit après un changement (sinon la liste garde l'ancien forfait). */}
           <TenantPlanForm key={usage.plan.id} tenantId={tenant.id} currentPlanId={usage.plan.id} plans={plans} />
         </div>
+      </section>
+
+      <section className="mb-6 rounded-xl border bg-card p-5" aria-labelledby="abonnement">
+        <h2 id="abonnement" className="mb-1 text-sm font-medium">
+          Abonnement : {billing.subscription ? SAAS_STATUS_LABELS[billing.subscription.status] : "sans facturation"}
+        </h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          {billing.subscription?.status === "TRIALING" && billing.subscription.trialEndsOn && (
+            <>Essai jusqu&apos;au {formatDate(billing.subscription.trialEndsOn)} · </>
+          )}
+          {billing.subscription?.currentPeriodStart && billing.subscription.currentPeriodEnd && (
+            <>
+              Période du {formatDate(billing.subscription.currentPeriodStart)} au{" "}
+              {formatDate(billing.subscription.currentPeriodEnd)} ·{" "}
+            </>
+          )}
+          Reste à régler : {billing.openTotal} FCFA
+        </p>
+        {billing.subscription?.status === "TRIALING" && (
+          <div className="mb-4 max-w-md">
+            <ExtendTrialForm tenantId={tenant.id} />
+          </div>
+        )}
+        <InvoiceList invoices={billing.invoices.slice(0, 6)} canPay={false} today={todayCalendar()} />
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
