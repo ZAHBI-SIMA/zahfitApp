@@ -59,7 +59,7 @@ async function PublicTenant({ params }: { params: Promise<{ slug: string }> }) {
                     ))}
                   </ul>
                 )}
-                {p.priceXof > 0 && (
+                {p.priceXof > 0 && data.onlinePayments && (
                   <Link
                     href={`/s/${tenant.slug}/inscription?formule=${p.id}`}
                     className="mt-auto inline-flex h-9 items-center justify-center rounded-lg bg-brand px-4 text-sm font-medium text-brand-foreground hover:bg-brand/90"

@@ -10,7 +10,7 @@ import { listProducts } from "@/modules/shop/shop.service";
 export const metadata: Metadata = { title: "Boutique" };
 
 export default async function ReceptionShopPage() {
-  const ctx = await requireSpace("reception");
+  const ctx = await requireSpace("reception", "SHOP");
   if (!can(ctx.role, "shop.sell")) redirect("/reception");
   const products = await withTenant(ctx.tenant.id, ctx.user.id, (tx) => listProducts(tx, { activeOnly: true }));
   return (

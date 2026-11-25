@@ -10,6 +10,7 @@ import {
 } from "@/modules/messaging/providers";
 import { CHANNEL_TEMPLATES, maskPhone, renderTemplateBody } from "@/modules/messaging/templates";
 import type { TemplateData } from "@/modules/notifications/templates";
+import { tenantHasFeature, whatsappRemaining } from "@/modules/saas/saas.service";
 
 /**
  * WhatsApp et SMS : choix du canal, file d'envoi, repli SMS, statuts,
@@ -90,12 +91,17 @@ export async function queueChannelMessage(
   data: TemplateData,
 ): Promise<string | null> {
   if (!CHANNEL_TEMPLATES[type]) return null;
+  // Forfait sans WhatsApp/SMS : la notification reste dans l'application (et l'e-mail).
+  if (!(await tenantHasFeature(tx, tenantId, "MESSAGING"))) return null;
   const tenant = await tx.tenant.findUniqueOrThrow({
     where: { id: tenantId },
     select: { whatsappEnabled: true, smsEnabled: true },
   });
+  // Quota WhatsApp du mois atteint : repli SMS (si consenti), sinon application seule.
+  const remaining = await whatsappRemaining(tx, tenantId);
+  const whatsappAllowed = remaining === null || remaining > 0;
   const channel: MessageChannel | null =
-    tenant.whatsappEnabled && member.consentWhatsapp && providerFor("WHATSAPP")
+    whatsappAllowed && tenant.whatsappEnabled && member.consentWhatsapp && providerFor("WHATSAPP")
       ? "WHATSAPP"
       : tenant.smsEnabled && member.consentSms && providerFor("SMS")
         ? "SMS"

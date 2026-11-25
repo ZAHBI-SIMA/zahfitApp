@@ -1,6 +1,6 @@
 "use client";
 
-import { Checkbox, Field, FormMessage } from "@/components/forms/form-feedback";
+import { Checkbox, Field, FormMessage, NativeSelect } from "@/components/forms/form-feedback";
 import { useFormAction } from "@/components/forms/use-form-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,7 @@ function IdentityFields({ state, tenant }: { state: FormState; tenant?: Partial<
   );
 }
 
-export function CreateTenantForm() {
+export function CreateTenantForm({ plans }: { plans: { id: string; name: string; monthlyPriceXof: number }[] }) {
   const { state, pending, onSubmit } = useFormAction(createTenantAction);
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
@@ -66,6 +66,18 @@ export function CreateTenantForm() {
           hint="Facultatif : généré à partir du nom (ex. salle-pilote-cocody)"
         >
           <Input id="slug" name="slug" />
+        </Field>
+        <Field name="saasPlanId" label="Forfait ZAHFIT *" state={state} hint="Modifiable ensuite depuis la fiche de la salle">
+          <NativeSelect id="saasPlanId" name="saasPlanId" defaultValue="" required>
+            <option value="" disabled>
+              Choisir…
+            </option>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {new Intl.NumberFormat("fr-FR").format(p.monthlyPriceXof)} FCFA / mois
+              </option>
+            ))}
+          </NativeSelect>
         </Field>
       </fieldset>
       <fieldset className="flex flex-col gap-4">

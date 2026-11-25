@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Planning" };
 
 /** Planning complet de la salle, en lecture (le coach voit aussi les cours de ses collègues). */
 export default async function CoachPlanningPage({ searchParams }: PageProps<"/coach/planning">) {
-  const ctx = await requireSpace("coach");
+  const ctx = await requireSpace("coach", "CLASSES");
   return (
     <>
       <PageHeader title="Planning de la salle" description={ctx.tenant.name} />

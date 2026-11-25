@@ -16,7 +16,7 @@ import { DAY_NAMES, weekStart } from "@/modules/classes/schedule";
 export const metadata: Metadata = { title: "Séance" };
 
 export default async function SessionPage({ params, searchParams }: PageProps<"/admin/planning/seance/[id]">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.manage")) redirect("/admin/planning");
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();

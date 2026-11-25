@@ -24,7 +24,8 @@ export async function GET(_request: Request, { params }: RouteContext<"/api/vent
   }));
   if (!data.sale) return new Response("Ticket introuvable.", { status: 404 });
 
-  const staff = can(ctx.role, "shop.sell") || can(ctx.role, "finance.reports.read");
+  const staff =
+    (can(ctx.role, "shop.sell") || can(ctx.role, "finance.reports.read")) && ctx.features.includes("SHOP");
   const ownPurchase = can(ctx.role, "self.payments") && data.sale.member?.userId === ctx.user.id;
   if (!staff && !ownPurchase) return new Response("Accès refusé.", { status: 403 });
 

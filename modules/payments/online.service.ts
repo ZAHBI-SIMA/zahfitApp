@@ -11,6 +11,7 @@ import { getProvider, type PaymentProvider, type ProviderStatus } from "@/module
 import { findRenewalLink } from "@/modules/messaging/renewal-links";
 import { todayCalendar } from "@/modules/subscriptions/dates";
 import { activateIfPaid, assignSubscription, cancelSubscription } from "@/modules/subscriptions/subscriptions.service";
+import { assertTenantFeature, tenantHasFeature } from "@/modules/saas/saas.service";
 
 /** Une tentative de paiement en ligne non confirmée expire au bout de 30 minutes. */
 export const PAYMENT_TTL_MINUTES = 30;
@@ -51,6 +52,8 @@ export async function loadPublicTenant(slug: string) {
       where: { isActive: true },
       orderBy: [{ sortOrder: "asc" }, { priceXof: "asc" }],
     }),
+    /** Le forfait de la salle inclut-il l'inscription en ligne ? */
+    onlinePayments: await tenantHasFeature(tx, tenantId, "ONLINE_PAYMENTS"),
   }));
 }
 
@@ -88,6 +91,7 @@ export async function startOnlineSignup(
   const today = todayCalendar();
 
   const prepared = await inTenant(tenantId, async (tx) => {
+    await assertTenantFeature(tx, tenantId, "ONLINE_PAYMENTS");
     let member = await tx.member.findUnique({ where: { tenantId_phone: { tenantId, phone: input.phone } } });
     if (member?.status === "ARCHIVED") {
       throw new BusinessError("Ce numéro ne peut pas s'inscrire en ligne : contactez directement la salle.", "phone");
@@ -226,6 +230,7 @@ export async function startRenewal(
 ) {
   const actor = { tenantId, userId: null };
   const prepared = await inTenant(tenantId, async (tx) => {
+    await assertTenantFeature(tx, tenantId, "ONLINE_PAYMENTS");
     const { link, state } = await findRenewalLink(tx, token, now);
     if (state !== "valid" || !link) throw new BusinessError(LINK_ERRORS[state as keyof typeof LINK_ERRORS]);
     if (link.member.status !== "ACTIVE") throw new BusinessError("Contactez la salle pour renouveler votre abonnement.");

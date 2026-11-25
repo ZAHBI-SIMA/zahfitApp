@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Séance" };
 
 /** Liste des participants et pointage, pour le coach de la séance. */
 export default async function CoachSessionPage({ params }: PageProps<"/coach/seance/[id]">) {
-  const ctx = await requireSpace("coach");
+  const ctx = await requireSpace("coach", "CLASSES");
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
   const data = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {

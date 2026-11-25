@@ -1,3 +1,4 @@
+import type { SaasFeature } from "@/lib/generated/prisma/enums";
 import type { Permission } from "@/lib/rbac/permissions";
 import type { Space } from "@/lib/rbac/spaces";
 
@@ -21,6 +22,8 @@ export type NavItem = {
   icon: IconName;
   /** Masqué si le rôle n'a pas cette permission. */
   permission?: Permission;
+  /** Module du forfait requis (sinon déduit de la permission) : l'entrée est masquée s'il manque. */
+  feature?: SaasFeature;
   /** Sprint prévu : l'entrée est affichée, désactivée, avec un badge « bientôt ». */
   plannedSprint?: number;
 };
@@ -33,7 +36,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
   "super-admin": [
     { href: "/super-admin", label: "Tableau de bord", icon: "dashboard" },
     { href: "/super-admin/salles", label: "Salles clientes", icon: "building" },
-    { href: "/super-admin/forfaits", label: "Forfaits SaaS", icon: "card", plannedSprint: 12 },
+    { href: "/super-admin/forfaits", label: "Forfaits SaaS", icon: "card" },
     { href: "/super-admin/audit", label: "Journal d'audit", icon: "shield" },
   ],
   admin: [
@@ -46,10 +49,11 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/depenses", label: "Dépenses", icon: "card", permission: "expenses.manage" },
     { href: "/admin/planning", label: "Planning", icon: "calendar", permission: "classes.read" },
     { href: "/admin/acces", label: "Fréquentation", icon: "qr", permission: "access.scan" },
-    { href: "/admin/messages", label: "Messages", icon: "bell", permission: "tenant.settings.manage" },
-    { href: "/admin/boutique", label: "Boutique", icon: "card", permission: "finance.reports.read" },
-    { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read" },
+    { href: "/admin/messages", label: "Messages", icon: "bell", permission: "tenant.settings.manage", feature: "MESSAGING" },
+    { href: "/admin/boutique", label: "Boutique", icon: "card", permission: "finance.reports.read", feature: "SHOP" },
+    { href: "/admin/statistiques", label: "Statistiques", icon: "chart", permission: "finance.reports.read", feature: "ADVANCED_REPORTS" },
     { href: "/admin/equipe", label: "Équipe", icon: "shield", permission: "staff.manage" },
+    { href: "/admin/forfait", label: "Mon forfait", icon: "shield", permission: "tenant.settings.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },
   ],
   reception: [
@@ -63,14 +67,14 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/reception/caisse", label: "Caisse", icon: "wallet", permission: "cash.operate" },
   ],
   coach: [
-    { href: "/coach", label: "Mes cours", icon: "calendar" },
-    { href: "/coach/planning", label: "Planning", icon: "calendar" },
+    { href: "/coach", label: "Mes cours", icon: "calendar", feature: "CLASSES" },
+    { href: "/coach/planning", label: "Planning", icon: "calendar", feature: "CLASSES" },
     { href: "/coach/profil", label: "Mon profil", icon: "user" },
   ],
   member: [
     { href: "/member", label: "Mon abonnement", icon: "card" },
-    { href: "/member/qr", label: "Mon QR Code", icon: "qr" },
-    { href: "/member/reservations", label: "Réservations", icon: "calendar" },
+    { href: "/member/qr", label: "Mon QR Code", icon: "qr", feature: "ACCESS_CONTROL" },
+    { href: "/member/reservations", label: "Réservations", icon: "calendar", feature: "CLASSES" },
     { href: "/member/notifications", label: "Notifications", icon: "bell" },
     { href: "/member/historique", label: "Historique", icon: "calendar" },
     { href: "/member/profil", label: "Mon profil", icon: "user" },

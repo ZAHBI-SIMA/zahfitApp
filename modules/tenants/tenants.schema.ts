@@ -78,6 +78,7 @@ export const tenantCreateSchema = z.object({
     .pipe(slugField.optional()),
   adminName: requiredText("Le nom de l'administrateur", 80),
   adminEmail: requiredEmail,
+  saasPlanId: z.uuid({ error: "Choisissez un forfait." }),
 });
 export type TenantCreateInput = z.infer<typeof tenantCreateSchema>;
 

@@ -5,6 +5,7 @@ import { BusinessError } from "@/lib/errors";
 import type { MembershipStatus, TenantRole } from "@/lib/generated/prisma/enums";
 import { STAFF_ROLES } from "@/lib/labels";
 import { requiredEmail, requiredText } from "@/lib/validation";
+import { assertStaffCapacity } from "@/modules/saas/saas.service";
 
 type Actor = { tenantId: string; userId: string };
 
@@ -47,6 +48,7 @@ export async function addStaffMember(tx: Tx, actor: Actor, userId: string, input
       "email",
     );
   }
+  await assertStaffCapacity(tx, actor.tenantId);
   const membership = await tx.tenantMembership.create({
     data: { tenantId: actor.tenantId, userId, role: input.role },
   });
@@ -103,6 +105,7 @@ export async function setStaffStatus(tx: Tx, actor: Actor, membershipId: string,
   if (status === "DISABLED" && membership.role === "ADMIN") {
     await assertAnotherActiveAdmin(tx, actor.tenantId, membershipId);
   }
+  if (status === "ACTIVE") await assertStaffCapacity(tx, actor.tenantId);
   await tx.tenantMembership.update({ where: { id: membershipId }, data: { status } });
   await audit(tx, {
     tenantId: actor.tenantId,

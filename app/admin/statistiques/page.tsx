@@ -46,7 +46,7 @@ function Bar({ value, max, color }: { value: number; max: number; color?: string
 }
 
 export default async function StatsPage({ searchParams }: PageProps<"/admin/statistiques">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "ADVANCED_REPORTS");
   if (!can(ctx.role, "finance.reports.read")) redirect("/admin");
   const period = parsePeriod((await searchParams).periode ?? "mois");
   const today = todayCalendar();

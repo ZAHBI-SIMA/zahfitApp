@@ -185,6 +185,8 @@ model Tenant {
   cashSessionRequired Boolean      @default(false) @map("cash_session_required")
   /// Compteur des tickets de vente boutique (VTE-000001…), incrémenté en transaction
   saleSeq             Int          @default(0) @map("sale_seq")
+  /// Forfait ZAHFIT (fonctionnalités et limites). Par défaut : Premium (salles existantes inchangées)
+  saasPlanId          String       @default(dbgenerated("'00000000-0000-7000-8000-000000000003'::uuid")) @map("saas_plan_id") @db.Uuid
   createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -214,6 +216,7 @@ model Tenant {
   stockMovements     StockMovement[]
   sales              Sale[]
   saleLines          SaleLine[]
+  saasPlan           SaasPlan            @relation(fields: [saasPlanId], references: [id], onDelete: Restrict)
 
   @@map("tenants")
 }
@@ -1152,4 +1155,48 @@ model SaleLine {
 
   @@index([tenantId, productId])
   @@map("sale_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Forfaits SaaS ZahDigit (Sprint 12)
+// ---------------------------------------------------------------------------
+
+/// Modules activables selon le forfait (le socle adhérents/abonnements/paiements manuels est toujours inclus)
+enum SaasFeature {
+  /// Inscription et renouvellement en ligne (Mobile Money)
+  ONLINE_PAYMENTS
+  /// Contrôle d'accès par QR Code et badge
+  ACCESS_CONTROL
+  /// Planning des cours et réservations
+  CLASSES
+  /// Messages WhatsApp et SMS
+  MESSAGING
+  /// Statistiques avancées
+  ADVANCED_REPORTS
+  /// Boutique et stocks
+  SHOP
+}
+
+/// Forfait commercial ZahDigit. Table de plateforme : lisible par tous, modifiable par le Super Admin seul
+model SaasPlan {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  /// Code stable (STARTER, BUSINESS, PREMIUM…)
+  code                String        @unique
+  name                String
+  description         String?
+  monthlyPriceXof     Int           @map("monthly_price_xof")
+  setupFeeXof         Int           @default(0) @map("setup_fee_xof")
+  features            SaasFeature[]
+  /// Limites : null = illimité
+  maxMembers          Int?          @map("max_members")
+  maxStaff            Int?          @map("max_staff")
+  maxWhatsappPerMonth Int?          @map("max_whatsapp_per_month")
+  isActive            Boolean       @default(true) @map("is_active")
+  sortOrder           Int           @default(0) @map("sort_order")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenants Tenant[]
+
+  @@map("saas_plans")
 }

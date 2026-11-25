@@ -10,7 +10,7 @@ import { unsubscribeWithToken, updateMessagingSettings } from "@/modules/messagi
 /** Canaux payants : réservé à qui gère la facturation (coût par message). */
 export async function updateMessagingSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
-    const ctx = await requireActionContext("billing.settings.manage");
+    const ctx = await requireActionContext("billing.settings.manage", "MESSAGING");
     const parsed = parseForm(z.object({ whatsappEnabled: checkbox, smsEnabled: checkbox }), formData);
     if (parsed.state) return parsed.state;
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>

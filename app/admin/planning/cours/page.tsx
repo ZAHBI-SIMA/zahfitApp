@@ -14,7 +14,7 @@ import { DAY_NAMES, fromMinutes, toMinutes } from "@/modules/classes/schedule";
 export const metadata: Metadata = { title: "Cours réguliers" };
 
 export default async function ClassesSetupPage({ searchParams }: PageProps<"/admin/planning/cours">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.manage")) redirect("/admin/planning");
   const created = (await searchParams).cree;
 

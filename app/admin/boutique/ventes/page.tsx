@@ -17,7 +17,7 @@ import { todayCalendar } from "@/modules/subscriptions/dates";
 export const metadata: Metadata = { title: "Ventes boutique" };
 
 export default async function SalesPage({ searchParams }: PageProps<"/admin/boutique/ventes">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "SHOP");
   const canManage = can(ctx.role, "shop.manage");
   if (!canManage && !can(ctx.role, "finance.reports.read")) redirect("/admin");
   const period = parsePeriod((await searchParams).periode);

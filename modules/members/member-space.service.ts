@@ -4,6 +4,7 @@ import type { Tx } from "@/lib/db";
 import { BusinessError } from "@/lib/errors";
 import { checkbox } from "@/lib/validation";
 import { createRenewalLink } from "@/modules/messaging/renewal-links";
+import { assertTenantFeature } from "@/modules/saas/saas.service";
 
 /**
  * Espace adhérent : ce que l'adhérent consulte ou modifie LUI-MÊME. Chaque
@@ -94,6 +95,7 @@ export async function updateMyConsents(
  * parcours que celui des rappels WhatsApp/SMS) pour la dernière formule.
  */
 export async function createSelfRenewalLink(tx: Tx, tenantId: string, userId: string) {
+  await assertTenantFeature(tx, tenantId, "ONLINE_PAYMENTS");
   const member = await myMember(tx, userId);
   if (!member) throw new BusinessError("Fiche adhérent introuvable.");
   const last = await tx.subscription.findFirst({

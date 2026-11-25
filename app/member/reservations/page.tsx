@@ -10,7 +10,7 @@ import { DAY_NAMES } from "@/modules/classes/schedule";
 export const metadata: Metadata = { title: "Réservations" };
 
 export default async function MemberBookingsPage() {
-  const ctx = await requireSpace("member");
+  const ctx = await requireSpace("member", "CLASSES");
   const now = new Date();
   const data = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => {
     // Filtre sur la salle active : un compte peut être adhérent de plusieurs salles.

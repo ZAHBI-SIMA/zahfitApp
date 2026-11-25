@@ -11,7 +11,7 @@ import { classOptions, tenantToday } from "@/modules/classes/classes.service";
 export const metadata: Metadata = { title: "Nouveau cours régulier" };
 
 export default async function NewSeriesPage() {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.manage")) redirect("/admin/planning");
   const { options, today } = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => ({
     options: await classOptions(tx),

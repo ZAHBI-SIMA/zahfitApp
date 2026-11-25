@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Contrôle d'accès" };
 
 export default async function ScanPage() {
   // L'espace Réception est réservé aux rôles qui ont `access.scan`.
-  const ctx = await requireSpace("reception");
+  const ctx = await requireSpace("reception", "ACCESS_CONTROL");
   const overview = await withTenant(ctx.tenant.id, ctx.user.id, (tx) => accessOverview(tx, ctx.tenant.id, new Date(), 1));
   const today = overview.days.at(-1)!;
 

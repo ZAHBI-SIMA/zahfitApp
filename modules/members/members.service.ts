@@ -4,6 +4,7 @@ import { BusinessError } from "@/lib/errors";
 import type { MemberSource, MemberStatus, Prisma } from "@/lib/generated/prisma/client";
 import { phoneSearchDigits } from "@/lib/phone";
 import type { MemberInput } from "@/modules/members/members.schema";
+import { assertMemberCapacity } from "@/modules/saas/saas.service";
 
 export type Actor = { tenantId: string; userId: string | null };
 
@@ -23,6 +24,8 @@ export async function reserveMemberCodes(tx: Tx, tenantId: string, count: number
     data: { memberSeq: { increment: count } },
     select: { memberSeq: true },
   });
+  // La ligne de la salle est verrouillée par l'incrément : la limite du forfait est sûre.
+  await assertMemberCapacity(tx, tenantId, count);
   const first = memberSeq - count + 1;
   return Array.from({ length: count }, (_, i) => memberCode(first + i));
 }

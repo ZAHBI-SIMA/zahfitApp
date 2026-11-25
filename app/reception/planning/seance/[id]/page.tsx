@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Séance" };
 
 /** L'accueil inscrit ou retire un adhérent (téléphone, passage au comptoir). */
 export default async function ReceptionSessionPage({ params }: PageProps<"/reception/planning/seance/[id]">) {
-  const ctx = await requireSpace("reception");
+  const ctx = await requireSpace("reception", "CLASSES");
   if (!can(ctx.role, "classes.read")) redirect("/reception");
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();

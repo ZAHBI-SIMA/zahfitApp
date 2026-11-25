@@ -31,8 +31,9 @@ if (!PASSWORD || PASSWORD.length < 10) {
 }
 
 const TENANTS = [
-  { slug: "pilote-cocody", name: "Salle Pilote Cocody", commune: "Cocody", city: "Abidjan" },
-  { slug: "demo-plateau", name: "Démo Fitness Plateau", commune: "Plateau", city: "Abidjan" },
+  { slug: "pilote-cocody", name: "Salle Pilote Cocody", commune: "Cocody", city: "Abidjan", plan: "PREMIUM" },
+  // Forfait Starter : montre les modules masqués et les limites
+  { slug: "demo-plateau", name: "Démo Fitness Plateau", commune: "Plateau", city: "Abidjan", plan: "STARTER" },
 ] as const;
 
 const ACCOUNTS: { email: string; name: string; tenant?: string; role?: TenantRole; platform?: true }[] = [
@@ -252,7 +253,13 @@ async function main() {
   await withPlatform(superAdminId, async (tx) => {
     const tenantIds = new Map<string, string>();
     for (const t of TENANTS) {
-      const tenant = await tx.tenant.upsert({ where: { slug: t.slug }, update: {}, create: t });
+      const { plan, ...identity } = t;
+      const { id: saasPlanId } = await tx.saasPlan.findUniqueOrThrow({ where: { code: plan }, select: { id: true } });
+      const tenant = await tx.tenant.upsert({
+        where: { slug: t.slug },
+        update: { saasPlanId },
+        create: { ...identity, saasPlanId },
+      });
       tenantIds.set(t.slug, tenant.id);
     }
 

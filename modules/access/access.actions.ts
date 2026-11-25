@@ -107,7 +107,7 @@ const memberIdSchema = z.object({ memberId: z.uuid({ error: "Adhérent introuvab
 
 export async function issueBadgeAction(_prev: BadgeFormState, formData: FormData): Promise<BadgeFormState> {
   try {
-    const ctx = await requireActionContext("members.write");
+    const ctx = await requireActionContext("members.write", "ACCESS_CONTROL");
     const parsed = parseForm(memberIdSchema, formData);
     if (parsed.state) return parsed.state;
     const { code } = await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
@@ -122,7 +122,7 @@ export async function issueBadgeAction(_prev: BadgeFormState, formData: FormData
 
 export async function revokeBadgeAction(_prev: BadgeFormState, formData: FormData): Promise<BadgeFormState> {
   try {
-    const ctx = await requireActionContext("members.write");
+    const ctx = await requireActionContext("members.write", "ACCESS_CONTROL");
     const parsed = parseForm(memberIdSchema, formData);
     if (parsed.state) return parsed.state;
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
@@ -146,7 +146,7 @@ const accessSettingsSchema = z.object({
 
 export async function updateAccessSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
-    const ctx = await requireActionContext("tenant.settings.manage");
+    const ctx = await requireActionContext("tenant.settings.manage", "ACCESS_CONTROL");
     const parsed = parseForm(accessSettingsSchema, formData);
     if (parsed.state) return parsed.state;
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>

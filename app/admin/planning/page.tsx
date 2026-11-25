@@ -11,7 +11,7 @@ import { requireSpace } from "@/lib/session";
 export const metadata: Metadata = { title: "Planning" };
 
 export default async function AdminPlanningPage({ searchParams }: PageProps<"/admin/planning">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.read")) redirect("/admin");
   const canManage = can(ctx.role, "classes.manage");
   const now = new Date();

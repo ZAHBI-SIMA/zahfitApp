@@ -210,7 +210,7 @@ const bookingSettingsSchema = z.object({
 
 export async function updateBookingSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
   try {
-    const ctx = await requireActionContext("tenant.settings.manage");
+    const ctx = await requireActionContext("tenant.settings.manage", "CLASSES");
     const parsed = parseForm(bookingSettingsSchema, formData);
     if (parsed.state) return parsed.state;
     await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>

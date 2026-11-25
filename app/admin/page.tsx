@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PageHeader, StatCard, UpcomingList } from "@/components/shell/page-header";
+import { PageHeader, StatCard } from "@/components/shell/page-header";
 import { withTenant } from "@/lib/db";
 import { formatXof } from "@/lib/format";
 import { can } from "@/lib/rbac/permissions";
@@ -44,14 +44,6 @@ export default async function AdminHome() {
         </div>
       )}
 
-      <div className="mt-6">
-        <UpcomingList
-          items={[
-            { sprint: 5, label: "Paiement Mobile Money en ligne et inscription publique" },
-            { sprint: 6, label: "Contrôle d'accès par QR Code" },
-          ]}
-        />
-      </div>
     </>
   );
 }

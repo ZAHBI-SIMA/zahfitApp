@@ -11,7 +11,7 @@ import { classOptions, tenantToday } from "@/modules/classes/classes.service";
 export const metadata: Metadata = { title: "Séance ponctuelle" };
 
 export default async function NewSessionPage({ searchParams }: PageProps<"/admin/planning/seance/nouvelle">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.manage")) redirect("/admin/planning");
   const wanted = (await searchParams).date;
   const { options, today } = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => ({

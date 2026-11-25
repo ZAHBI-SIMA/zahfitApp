@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { withUser } from "@/lib/db";
-import type { TenantRole, TenantStatus } from "@/lib/generated/prisma/enums";
+import type { SaasFeature, TenantRole, TenantStatus } from "@/lib/generated/prisma/enums";
 import { ROLE_PERMISSIONS, requiresTwoFactor, type Permission } from "@/lib/rbac/permissions";
 import { canAccessSpace, type TenantSpace } from "@/lib/rbac/spaces";
 
@@ -32,6 +32,9 @@ export type TenantContext = {
   permissions: readonly Permission[];
   /** Autres salles accessibles (pour le futur sélecteur de salle). */
   otherTenants: { id: string; name: string }[];
+  /** Forfait ZAHFIT de la salle et modules qu'il inclut. */
+  plan: { id: string; code: string; name: string };
+  features: readonly SaasFeature[];
 };
 
 const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
@@ -65,7 +68,17 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   const memberships = await withUser(user.id, (tx) =>
     tx.tenantMembership.findMany({
       where: { userId: user.id, status: "ACTIVE", tenant: { deletedAt: null } },
-      include: { tenant: { select: { id: true, name: true, slug: true, status: true } } },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            saasPlan: { select: { id: true, code: true, name: true, features: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     }),
   );
@@ -74,9 +87,12 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   const wanted = (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value;
   const active = memberships.find((m) => m.tenantId === wanted) ?? memberships[0];
 
+  const { saasPlan, ...tenant } = active.tenant;
   return {
     user,
-    tenant: active.tenant,
+    tenant,
+    plan: { id: saasPlan.id, code: saasPlan.code, name: saasPlan.name },
+    features: saasPlan.features ?? [],
     role: active.role,
     permissions: ROLE_PERMISSIONS[active.role],
     otherTenants: memberships
@@ -118,8 +134,16 @@ export async function requireSuperAdmin(): Promise<SessionUser> {
   return guardSuperAdmin();
 }
 
-/** Garde d'une PAGE d'un espace de salle (admin, réception, coach, adhérent). */
-export async function requireSpace(space: TenantSpace): Promise<TenantContext> {
+/**
+ * Garde d'une PAGE d'un espace de salle (admin, réception, coach, adhérent).
+ * `feature` : module du forfait requis. Absent, l'administration est envoyée
+ * sur « Mon forfait » (qui explique quoi faire), les autres espaces sur leur accueil.
+ */
+export async function requireSpace(space: TenantSpace, feature?: SaasFeature): Promise<TenantContext> {
   await connection();
-  return guardSpace(space);
+  const ctx = await guardSpace(space);
+  if (feature && !ctx.features.includes(feature)) {
+    redirect(space === "admin" ? `/admin/forfait?module=${feature}` : `/${space}`);
+  }
+  return ctx;
 }

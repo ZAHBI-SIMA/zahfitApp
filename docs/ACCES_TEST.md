@@ -113,6 +113,22 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## Forfaits SaaS
+
+`pnpm db:seed` place la salle pilote en **Premium** et la salle « Démo Fitness Plateau » en **Starter**.
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Menu de l'administration Plateau | admin@plateau | Ni Planning, ni Fréquentation, ni Messages, ni Boutique, ni Statistiques ; « Mon forfait » présent |
+| Ouvrir `/admin/boutique` à la main | admin@plateau | Redirection vers « Mon forfait » avec l'explication du module manquant |
+| « Mon forfait » | admin, gerant | Jauges d'usage (adhérents actifs, équipe, WhatsApp du mois) et comparatif des forfaits |
+| Vitrine `/s/demo-plateau` | — | Formules affichées, sans bouton « S'inscrire en ligne » |
+| Super Admin → « Forfaits SaaS » → modifier Starter (ex. 2 adhérents max.) | superadmin | Enregistré ; à la création du 3e adhérent actif : « Limite du forfait Starter » |
+| Super Admin → Salles → Démo Fitness Plateau → « Changer de forfait » → Business | superadmin | Planning et Fréquentation apparaissent aussitôt dans le menu de la salle |
+| Super Admin → « Nouvelle salle » | superadmin | Le choix du forfait est obligatoire |
+
+Les tarifs des forfaits sont **indicatifs** : ajustez-les dans Super Admin → Forfaits SaaS.
+
 ## Boutique, statistiques et espace adhérent
 
 `pnpm db:seed` crée une boutique de démonstration (eau, boisson énergétique, barre protéinée, gourde, location de serviette).

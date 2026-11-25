@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Mon QR Code" };
  * tout seul, même si le réseau tombe à l'entrée de la salle.
  */
 export default async function MemberQrPage() {
-  const ctx = await requireSpace("member");
+  const ctx = await requireSpace("member", "ACCESS_CONTROL");
   const today = todayCalendar();
   const member = await withTenant(ctx.tenant.id, ctx.user.id, (tx) =>
     tx.member.findFirst({

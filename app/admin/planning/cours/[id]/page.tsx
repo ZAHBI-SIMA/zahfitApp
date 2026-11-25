@@ -14,7 +14,7 @@ import { DAY_NAMES } from "@/modules/classes/schedule";
 export const metadata: Metadata = { title: "Cours régulier" };
 
 export default async function SeriesPage({ params }: PageProps<"/admin/planning/cours/[id]">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "CLASSES");
   if (!can(ctx.role, "classes.manage")) redirect("/admin/planning");
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();

@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { can } from "@/lib/rbac/permissions";
 import { canAccessSpace, type Space, type TenantSpace } from "@/lib/rbac/spaces";
 import { NAVIGATION } from "@/lib/navigation";
+import { PERMISSION_FEATURE, hasFeature } from "@/modules/saas/features";
 import { getTenantContext, guardSpace, guardSuperAdmin } from "@/lib/session";
 import { ROLE_LABELS } from "@/lib/labels";
 import { AppShell, ShellSkeleton } from "@/components/shell/app-shell";
@@ -59,7 +60,11 @@ async function loadShell(space: Space) {
   const otherSpaces: Space[] = TENANT_SPACES.filter((s) => s !== space && canAccessSpace(ctx.role, s));
   if (ctx.user.platformRole === "SUPER_ADMIN") otherSpaces.unshift("super-admin");
   return {
-    nav: NAVIGATION[space].filter((item) => !item.permission || can(ctx.role, item.permission)),
+    nav: NAVIGATION[space].filter(
+      (item) =>
+        (!item.permission || can(ctx.role, item.permission)) &&
+        hasFeature(ctx.features, item.feature ?? (item.permission ? PERMISSION_FEATURE[item.permission] : undefined)),
+    ),
     userName: ctx.user.name,
     tenantName: ctx.tenant.name,
     roleLabel: ROLE_LABELS[ctx.role],

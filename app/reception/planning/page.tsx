@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Planning" };
 
 /** Planning en lecture : l'accueil renseigne les adhérents sur les cours du jour. */
 export default async function ReceptionPlanningPage({ searchParams }: PageProps<"/reception/planning">) {
-  const ctx = await requireSpace("reception");
+  const ctx = await requireSpace("reception", "CLASSES");
   if (!can(ctx.role, "classes.read")) redirect("/reception");
   return (
     <>

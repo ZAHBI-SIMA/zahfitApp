@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Boutique" };
 const KIND_LABELS = { RESTOCK: "Réception", SALE: "Vente", SALE_VOID: "Vente annulée", ADJUSTMENT: "Ajustement" } as const;
 
 export default async function AdminShopPage() {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "SHOP");
   const canManage = can(ctx.role, "shop.manage");
   if (!canManage && !can(ctx.role, "finance.reports.read")) redirect("/admin");
   const { products, movements } = await withTenant(ctx.tenant.id, ctx.user.id, async (tx) => ({

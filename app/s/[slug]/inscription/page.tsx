@@ -29,7 +29,7 @@ async function Signup({
   const { slug } = await params;
   const planId = (await searchParams).formule;
   const data = await loadPublicTenant(slug);
-  if (!data) notFound();
+  if (!data || !data.onlinePayments) notFound();
   const plan = data.plans.find((p) => p.id === planId && p.priceXof > 0);
   if (!plan) notFound();
 

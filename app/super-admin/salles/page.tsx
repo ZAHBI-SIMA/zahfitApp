@@ -28,6 +28,7 @@ export default async function TenantsPage() {
             <tr>
               <th className="px-4 py-3 font-medium">Salle</th>
               <th className="px-4 py-3 font-medium">Localisation</th>
+              <th className="px-4 py-3 font-medium">Forfait</th>
               <th className="px-4 py-3 font-medium">Adhérents</th>
               <th className="px-4 py-3 font-medium">Comptes</th>
               <th className="hidden px-4 py-3 font-medium sm:table-cell">Créée le</th>
@@ -44,7 +45,13 @@ export default async function TenantsPage() {
                   <p className="text-xs text-muted-foreground">/{t.slug}</p>
                 </td>
                 <td className="px-4 py-3">{[t.commune, t.city].filter(Boolean).join(", ") || "—"}</td>
-                <td className="px-4 py-3">{t._count.members}</td>
+                <td className="px-4 py-3">{t.saasPlan.name}</td>
+                <td className="px-4 py-3">
+                  {t._count.members}
+                  {t.saasPlan.maxMembers !== null && (
+                    <span className="text-muted-foreground"> / {t.saasPlan.maxMembers}</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">{t._count.memberships}</td>
                 <td className="hidden px-4 py-3 sm:table-cell">{formatDate(t.createdAt)}</td>
                 <td className="px-4 py-3">

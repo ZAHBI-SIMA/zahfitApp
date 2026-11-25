@@ -59,7 +59,7 @@ function Bars({ data, label }: { data: { key: string; tick: string; value: numbe
 }
 
 export default async function AccessPage({ searchParams }: PageProps<"/admin/acces">) {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "ACCESS_CONTROL");
   if (!can(ctx.role, "access.scan")) redirect("/admin");
   const wanted = (await searchParams).filtre;
   const filter = FILTERS.find((f) => f.value === wanted) ?? FILTERS[0];

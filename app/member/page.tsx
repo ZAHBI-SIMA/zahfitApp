@@ -42,7 +42,9 @@ export default async function MemberHome() {
     .reverse();
   // Renouvellement en ligne : un abonnement déjà payé à reconduire, et un prestataire actif.
   const canRenewOnline =
-    activeOnlineProvider() !== null && subs.some((s) => !["CANCELLED", "PENDING_PAYMENT"].includes(s.status));
+    ctx.features.includes("ONLINE_PAYMENTS") &&
+    activeOnlineProvider() !== null &&
+    subs.some((s) => !["CANCELLED", "PENDING_PAYMENT"].includes(s.status));
 
   return (
     <>

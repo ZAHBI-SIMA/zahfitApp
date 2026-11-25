@@ -25,7 +25,7 @@ export async function updateMyConsentsAction(_prev: FormState, formData: FormDat
 export async function renewOnlineAction(): Promise<FormState> {
   let path: string;
   try {
-    const ctx = await requireActionContext("self.subscription");
+    const ctx = await requireActionContext("self.subscription", "ONLINE_PAYMENTS");
     if (!activeOnlineProvider()) {
       return { ok: false, message: "Le paiement en ligne n'est pas disponible : renouvelez à l'accueil." };
     }

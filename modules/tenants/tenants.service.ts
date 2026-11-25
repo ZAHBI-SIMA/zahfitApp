@@ -30,6 +30,7 @@ export function listTenants(tx: Tx) {
       commune: true,
       status: true,
       createdAt: true,
+      saasPlan: { select: { name: true, maxMembers: true } },
       _count: { select: { members: true, memberships: true } },
     },
   });
@@ -40,10 +41,13 @@ export async function createTenant(tx: Tx, actorId: string, input: TenantCreateI
   const slug = input.slug ?? slugify(input.name);
   if (slug.length < 3) throw new BusinessError("Choisissez un identifiant d'URL d'au moins 3 caractères.", "slug");
   await assertSlugAvailable(tx, slug);
+  const plan = await tx.saasPlan.findUnique({ where: { id: input.saasPlanId }, select: { isActive: true, code: true } });
+  if (!plan?.isActive) throw new BusinessError("Choisissez un forfait proposé à la vente.", "saasPlanId");
 
   const tenant = await tx.tenant.create({
     data: {
       slug,
+      saasPlanId: input.saasPlanId,
       name: input.name,
       phone: input.phone,
       email: input.email,
@@ -59,7 +63,7 @@ export async function createTenant(tx: Tx, actorId: string, input: TenantCreateI
     action: "tenant.create",
     entityType: "tenant",
     entityId: tenant.id,
-    after: { slug, name: input.name, adminEmail: input.adminEmail },
+    after: { slug, name: input.name, adminEmail: input.adminEmail, plan: plan.code },
   });
   return tenant;
 }

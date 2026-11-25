@@ -107,7 +107,8 @@ export default async function SuperAdminHome() {
       <div className="mt-6">
         <UpcomingList
           items={[
-            { sprint: 12, label: "Forfaits SaaS et limites" },
+            { sprint: 13, label: "Facturation ZahDigit : essais, factures, relances, suspension automatique" },
+            { sprint: 14, label: "Support, onboarding guidé et mode « se connecter en tant que »" },
           ]}
         />
       </div>

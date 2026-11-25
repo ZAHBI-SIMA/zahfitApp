@@ -30,7 +30,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
 };
 
 export default async function MessagesPage() {
-  const ctx = await requireSpace("admin");
+  const ctx = await requireSpace("admin", "MESSAGING");
   if (!can(ctx.role, "tenant.settings.manage")) redirect("/admin");
   const now = new Date();
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)); // Abidjan = UTC

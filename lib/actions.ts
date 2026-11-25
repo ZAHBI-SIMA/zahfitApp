@@ -3,7 +3,9 @@ import { refresh } from "next/cache";
 import { BusinessError } from "@/lib/errors";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { ForbiddenError, requirePermission } from "@/lib/rbac/guard";
+import type { SaasFeature } from "@/lib/generated/prisma/enums";
 import { requiresTwoFactor, type Permission } from "@/lib/rbac/permissions";
+import { PERMISSION_FEATURE, featureUnavailableMessage } from "@/modules/saas/features";
 import { getTenantContext, isSuperAdmin, requireUser, type SessionUser, type TenantContext } from "@/lib/session";
 import type { FormState } from "@/lib/validation";
 
@@ -19,7 +21,7 @@ const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
  * active et non suspendue, 2FA pour les rôles sensibles, permission.
  * Un bouton masqué dans l'interface n'est jamais une protection suffisante.
  */
-export async function requireActionContext(permission: Permission): Promise<TenantContext> {
+export async function requireActionContext(permission: Permission, feature?: SaasFeature): Promise<TenantContext> {
   const ctx = await getTenantContext();
   if (!ctx) throw new ForbiddenError(permission);
   if (ctx.tenant.status === "SUSPENDED") throw new BusinessError("L'accès à cette salle est suspendu.");
@@ -27,6 +29,11 @@ export async function requireActionContext(permission: Permission): Promise<Tena
     throw new BusinessError("Activez la double authentification pour effectuer cette action.");
   }
   requirePermission(ctx, permission);
+  // Forfait : le module de la permission (ou celui demandé explicitement) doit être inclus.
+  const required = feature ?? PERMISSION_FEATURE[permission];
+  if (required && !ctx.features.includes(required)) {
+    throw new BusinessError(featureUnavailableMessage(required, ctx.plan.name));
+  }
   return ctx;
 }
 

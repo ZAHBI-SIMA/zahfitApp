@@ -9,6 +9,7 @@ import { flushMessages, queueChannelMessage } from "@/modules/messaging/messagin
 import { createRenewalLink } from "@/modules/messaging/renewal-links";
 import { CHANNEL_TEMPLATES } from "@/modules/messaging/templates";
 import { EMAIL_BY_DEFAULT, emailText, render, type TemplateData } from "@/modules/notifications/templates";
+import { tenantHasFeature } from "@/modules/saas/saas.service";
 
 /**
  * Moteur de notifications : ÉVÉNEMENT → MODÈLE → CANAUX.
@@ -172,6 +173,8 @@ const alreadySent = async (tx: Tx, tenantId: string, dedupeKey: string) =>
   !!(await tx.notification.findUnique({ where: { tenantId_dedupeKey: { tenantId, dedupeKey } }, select: { id: true } }));
 
 export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: string, now: Date = new Date()) {
+  // Lien « renouveler en un clic » seulement si le forfait inclut le paiement en ligne.
+  const online = await tenantHasFeature(tx, tenantId, "ONLINE_PAYMENTS");
   const date = (iso: string) => new Date(`${iso}T00:00:00Z`);
   let created = 0;
   for (const days of [7, 3]) {
@@ -192,7 +195,7 @@ export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: 
           planName: s.planName,
           endDate: formatDate(s.endDate),
           days,
-          renewPath: await createRenewalLink(tx, tenantId, s, now),
+          renewPath: online ? await createRenewalLink(tx, tenantId, s, now) : undefined,
         },
         { dedupeKey },
       );
@@ -212,7 +215,7 @@ export async function runSubscriptionReminders(tx: Tx, tenantId: string, today: 
       tenantId,
       s.memberId,
       "SUBSCRIPTION_EXPIRED",
-      { planName: s.planName, endDate: formatDate(s.endDate), renewPath: await createRenewalLink(tx, tenantId, s, now) },
+      { planName: s.planName, endDate: formatDate(s.endDate), renewPath: online ? await createRenewalLink(tx, tenantId, s, now) : undefined },
       { dedupeKey },
     );
     if (id) created++;
