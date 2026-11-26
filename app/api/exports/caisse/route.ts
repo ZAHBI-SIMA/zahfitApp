@@ -12,6 +12,8 @@ import { isoDate, todayCalendar } from "@/modules/subscriptions/dates";
 export async function GET(request: Request) {
   const ctx = await getTenantContext();
   if (!ctx || !can(ctx.role, "finance.reports.read")) return new Response("Accès refusé.", { status: 403 });
+  // Accès du support : pas d'export massif (ni de trace au nom du compte consulté).
+  if (ctx.supportAccess) return new Response("Export indisponible pendant un accès du support.", { status: 403 });
 
   const period = parsePeriod(new URL(request.url).searchParams.get("periode"));
   const today = todayCalendar();

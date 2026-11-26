@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { withPlatform } from "@/lib/db";
 import { TENANT_STATUS_LABELS } from "@/lib/labels";
 import { requireSuperAdmin } from "@/lib/session";
-import { PageHeader, StatCard, UpcomingList } from "@/components/shell/page-header";
+import { PageHeader, StatCard } from "@/components/shell/page-header";
+import { supportKpis } from "@/modules/support/support.service";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { formatXof } from "@/lib/format";
 import { platformDashboard } from "@/modules/billing/billing.service";
@@ -28,7 +30,10 @@ export default async function SuperAdminHome() {
     }),
   );
   const active = tenants.filter((t) => t.status === "ACTIVE").length;
-  const kpi = await withPlatform(user.id, (tx) => platformDashboard(tx));
+  const { kpi, support } = await withPlatform(user.id, async (tx) => ({
+    kpi: await platformDashboard(tx),
+    support: await supportKpis(tx),
+  }));
   const now = new Date();
   const costs = await platformMessagingCosts(
     new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
@@ -136,13 +141,26 @@ export default async function SuperAdminHome() {
         )}
       </section>
 
-      <div className="mt-6">
-        <UpcomingList
-          items={[
-            { sprint: 14, label: "Support, onboarding guidé et mode « se connecter en tant que »" },
-          ]}
-        />
-      </div>
+      <section aria-labelledby="support" className="mt-6">
+        <h2 id="support" className="mb-3 text-sm font-medium">
+          Support des salles
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Link href="/super-admin/support" className="rounded-xl hover:ring-2 hover:ring-brand/40">
+            <StatCard
+              label="Tickets à traiter"
+              value={support.toHandle}
+              hint={support.urgent ? `dont ${support.urgent} urgent(s) →` : "Voir la file →"}
+            />
+          </Link>
+          <StatCard label="En attente des salles" value={support.waiting} />
+          <StatCard
+            label="Première réponse (30 j)"
+            value={support.firstResponseHours === null ? "—" : `${support.firstResponseHours} h`}
+            hint="Délai moyen"
+          />
+        </div>
+      </section>
     </>
   );
 }

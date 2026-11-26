@@ -9,6 +9,7 @@ import {
   ChartColumn,
   CreditCard,
   LayoutDashboard,
+  LifeBuoy,
   QrCode,
   Settings,
   ShieldCheck,
@@ -33,6 +34,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   shield: ShieldCheck,
   user: User,
   bell: Bell,
+  help: LifeBuoy,
 };
 
 export function NavLinks({ items }: { items: NavItem[] }) {

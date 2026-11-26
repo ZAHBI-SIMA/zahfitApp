@@ -244,7 +244,8 @@ export const CASH_MOVEMENT_LABELS: Record<CashMovementKind, string> = {
   SALE_VOID: "Vente annulée",
 };
 
-async function userNames(tx: Tx, ids: (string | null | undefined)[]) {
+/** Noms d'affichage d'utilisateurs (table d'identité, lisible sans contexte de salle). */
+export async function userNames(tx: Tx, ids: (string | null | undefined)[]) {
   const unique = [...new Set(ids.filter((id): id is string => !!id))];
   const users = await tx.user.findMany({ where: { id: { in: unique } }, select: { id: true, name: true } });
   const names = new Map(users.map((u) => [u.id, u.name]));

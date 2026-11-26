@@ -5,6 +5,7 @@ import { SPACE_LABELS, type Space } from "@/lib/rbac/spaces";
 import { Logo } from "@/components/shell/logo";
 import { NavLinks } from "@/components/shell/nav-links";
 import { SignOutButton, ThemeToggle } from "@/components/shell/user-actions";
+import { endSupportAccessAction } from "@/modules/support/support.actions";
 
 type AppShellProps = {
   space: Space;
@@ -16,6 +17,8 @@ type AppShellProps = {
   otherSpaces: Space[];
   /** Bandeau d'alerte (ex. facture ZAHFIT en retard). */
   alert?: { message: string; href?: string };
+  /** Accès du support ZahDigit en cours (lecture seule). */
+  support?: { agentName: string; targetName: string; roleLabel: string; until: string };
   children: ReactNode;
 };
 
@@ -70,6 +73,23 @@ export function AppShell(props: AppShellProps) {
           <ThemeToggle />
           <SignOutButton />
         </header>
+        {props.support && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-destructive/50 bg-destructive/10 px-4 py-2 text-sm md:px-8"
+          >
+            <p className="flex-1">
+              <strong>Accès du support ZahDigit</strong> ({props.support.agentName}) — espace de{" "}
+              {props.support.targetName} ({props.support.roleLabel}), <strong>consultation seule</strong> jusqu&apos;à{" "}
+              {props.support.until}. La salle voit cet accès dans son historique.
+            </p>
+            <form action={endSupportAccessAction}>
+              <button type="submit" className="rounded-md border border-destructive/60 px-3 py-1 text-xs font-medium hover:bg-destructive/10">
+                Quitter l&apos;accès
+              </button>
+            </form>
+          </div>
+        )}
         {props.alert && (
           <div role="alert" className="border-b border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm md:px-8">
             {props.alert.message}{" "}

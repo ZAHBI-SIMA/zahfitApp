@@ -17,6 +17,9 @@ export async function createPlanAction(_prev: FormState, formData: FormData): Pr
   } catch (error) {
     return toFormState(error);
   }
+  // Retour à l'assistant de démarrage s'il est à l'origine de la création
+  // (valeur fixe : jamais d'URL libre, pour éviter toute redirection ouverte).
+  if (formData.get("returnTo") === "/admin/demarrage") redirect("/admin/demarrage?etape=formules&cree=1");
   redirect("/admin/formules?cree=1");
 }
 

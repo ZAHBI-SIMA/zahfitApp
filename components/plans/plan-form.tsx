@@ -25,13 +25,14 @@ type PlanValues = {
   isActive: boolean;
 };
 
-export function PlanForm({ plan }: { plan?: PlanValues }) {
+export function PlanForm({ plan, returnTo }: { plan?: PlanValues; returnTo?: "/admin/demarrage" }) {
   const { state, pending, onSubmit } = useFormAction(plan ? updatePlanAction : createPlanAction);
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
       <FormMessage state={state} />
       {plan && <input type="hidden" name="id" value={plan.id} />}
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Field name="name" label="Nom de la formule *" state={state}>

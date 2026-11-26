@@ -14,7 +14,8 @@ export type IconName =
   | "settings"
   | "shield"
   | "user"
-  | "bell";
+  | "bell"
+  | "help";
 
 export type NavItem = {
   href: string;
@@ -38,6 +39,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/super-admin/salles", label: "Salles clientes", icon: "building" },
     { href: "/super-admin/forfaits", label: "Forfaits SaaS", icon: "card" },
     { href: "/super-admin/facturation", label: "Facturation", icon: "wallet" },
+    { href: "/super-admin/support", label: "Support", icon: "help" },
     { href: "/super-admin/audit", label: "Journal d'audit", icon: "shield" },
   ],
   admin: [
@@ -57,6 +59,7 @@ export const NAVIGATION: Record<Space, NavItem[]> = {
     { href: "/admin/forfait", label: "Mon forfait", icon: "shield", permission: "tenant.settings.manage" },
     { href: "/admin/facturation", label: "Abonnement ZAHFIT", icon: "wallet", permission: "billing.settings.manage" },
     { href: "/admin/parametres", label: "Paramètres", icon: "settings", permission: "tenant.settings.manage" },
+    { href: "/admin/support", label: "Support", icon: "help", permission: "support.use" },
   ],
   reception: [
     { href: "/reception", label: "Accueil", icon: "dashboard" },

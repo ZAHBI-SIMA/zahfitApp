@@ -16,6 +16,9 @@ import type { FormState } from "@/lib/validation";
 
 const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
 
+export const SUPPORT_READ_ONLY_MESSAGE =
+  "Accès du support ZahDigit : consultation seule. Aucune modification n'est possible au nom de la salle.";
+
 /**
  * Contexte d'une action de salle. Revérifie TOUT côté serveur : salle
  * active et non suspendue, 2FA pour les rôles sensibles, permission.
@@ -28,6 +31,9 @@ export async function requireActionContext(
 ): Promise<TenantContext> {
   const ctx = await getTenantContext();
   if (!ctx) throw new ForbiddenError(permission);
+  // Accès du support : consultation seule, sans exception. Rien ne s'écrit
+  // au nom de la salle (ni au nom du compte consulté) pendant cet accès.
+  if (ctx.supportAccess) throw new BusinessError(SUPPORT_READ_ONLY_MESSAGE);
   if (ctx.tenant.status === "SUSPENDED" && !options.allowSuspended) {
     throw new BusinessError("L'accès à cette salle est suspendu.");
   }

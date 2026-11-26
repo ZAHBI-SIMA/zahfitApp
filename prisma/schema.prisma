@@ -187,6 +187,9 @@ model Tenant {
   saleSeq             Int          @default(0) @map("sale_seq")
   /// Forfait ZAHFIT (fonctionnalités et limites). Par défaut : Premium (salles existantes inchangées)
   saasPlanId          String       @default(dbgenerated("'00000000-0000-7000-8000-000000000003'::uuid")) @map("saas_plan_id") @db.Uuid
+  /// Assistant de démarrage : étapes passées volontairement, et fin de l'assistant
+  onboardingSkipped   String[]     @default([]) @map("onboarding_skipped")
+  onboardingDoneAt    DateTime?    @map("onboarding_done_at") @db.Timestamptz(3)
   createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt           DateTime?    @map("deleted_at") @db.Timestamptz(3)
@@ -220,6 +223,9 @@ model Tenant {
   billing            TenantSubscription?
   saasInvoices       SaasInvoice[]
   saasPayments       SaasPayment[]
+  supportTickets     SupportTicket[]
+  supportMessages    SupportTicketMessage[]
+  supportAccesses    SupportAccess[]
 
   @@map("tenants")
 }
@@ -1306,4 +1312,110 @@ model PlatformCounter {
   value Int    @default(0)
 
   @@map("platform_counters")
+}
+
+// ---------------------------------------------------------------------------
+// Support et onboarding (Sprint 14)
+// ---------------------------------------------------------------------------
+
+enum SupportTicketStatus {
+  OPEN // en attente de ZahDigit
+  IN_PROGRESS // pris en charge
+  WAITING_CUSTOMER // réponse attendue de la salle
+  RESOLVED // solution proposée (la salle peut encore répondre)
+  CLOSED // définitif
+}
+
+enum SupportTicketCategory {
+  TECHNICAL
+  BILLING
+  ACCOUNT
+  FEATURE_REQUEST
+  OTHER
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportMessageKind {
+  MESSAGE
+  /// Note de l'équipe ZahDigit, invisible pour la salle (RLS)
+  INTERNAL_NOTE
+  /// Trace d'un changement de statut (historique)
+  STATUS_CHANGE
+}
+
+/// Ticket de support salle → ZahDigit. Jamais supprimé.
+model SupportTicket {
+  id              String                @id @default(uuid(7)) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  /// Numéro lisible (#123). Une séquence suffit : contrairement aux factures, un trou n'a aucune portée légale
+  number          Int                   @unique @default(autoincrement())
+  subject         String
+  category        SupportTicketCategory
+  priority        SupportTicketPriority @default(NORMAL)
+  status          SupportTicketStatus   @default(OPEN)
+  createdById     String                @map("created_by_id")
+  /// Membre de l'équipe ZahDigit en charge
+  assignedToId    String?               @map("assigned_to_id")
+  lastActivityAt  DateTime              @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  firstResponseAt DateTime?             @map("first_response_at") @db.Timestamptz(3)
+  resolvedAt      DateTime?             @map("resolved_at") @db.Timestamptz(3)
+  closedAt        DateTime?             @map("closed_at") @db.Timestamptz(3)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  messages SupportTicketMessage[]
+
+  @@index([tenantId, status])
+  @@index([status, lastActivityAt])
+  @@map("support_tickets")
+}
+
+/// Message, note interne ou changement de statut d'un ticket. Immuable.
+model SupportTicketMessage {
+  id           String               @id @default(uuid(7)) @db.Uuid
+  tenantId     String               @map("tenant_id") @db.Uuid
+  ticketId     String               @map("ticket_id") @db.Uuid
+  authorId     String?              @map("author_id")
+  fromPlatform Boolean              @map("from_platform")
+  kind         SupportMessageKind   @default(MESSAGE)
+  body         String
+  statusFrom   SupportTicketStatus? @map("status_from")
+  statusTo     SupportTicketStatus? @map("status_to")
+  createdAt    DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
+}
+
+/// Accès du support ZahDigit à l'espace d'une salle (« se connecter en tant
+/// que »), en LECTURE SEULE. Toujours visible par la salle, jamais supprimé.
+model SupportAccess {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  tenantId       String     @map("tenant_id") @db.Uuid
+  /// Super Admin qui consulte
+  platformUserId String     @map("platform_user_id")
+  /// Compte du personnel dont l'espace est affiché, et son rôle à l'ouverture
+  targetUserId   String     @map("target_user_id")
+  targetRole     TenantRole @map("target_role")
+  reason         String
+  ticketId       String?    @map("ticket_id") @db.Uuid
+  startedAt      DateTime   @default(now()) @map("started_at") @db.Timestamptz(3)
+  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(3)
+  endedAt        DateTime?  @map("ended_at") @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, startedAt])
+  @@index([platformUserId, startedAt])
+  @@map("support_accesses")
 }

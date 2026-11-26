@@ -12,6 +12,7 @@ export const PERMISSIONS = [
   "billing.settings.manage", // moyens de paiement, numérotation des reçus
   "staff.manage", // comptes du personnel et rôles
   "audit.read",
+  "support.use", // tickets de support ZahDigit, historique des accès du support
   // Adhérents & abonnements
   "members.read",
   "members.write",
@@ -80,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
     "dashboard.view",
     "tenant.settings.manage",
     "audit.read",
+    "support.use",
     "members.read",
     "members.write",
     "members.archive",
@@ -137,6 +139,7 @@ export const ROLE_PERMISSIONS: Record<TenantRole, readonly Permission[]> = {
   ACCOUNTANT: [
     "dashboard.view",
     "audit.read",
+    "support.use",
     "members.read",
     "subscriptions.read",
     "payments.read",

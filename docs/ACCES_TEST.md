@@ -113,6 +113,19 @@ Les séances sont générées 8 semaines à l'avance. En production, appelez cha
 
 En production, appelez toutes les heures `GET /api/cron/notifications` avec l'en-tête `Authorization: Bearer <CRON_SECRET>` : rappels d'échéance (J-7, J-3, J0) et nouvel essai des e-mails en échec.
 
+## Support, onboarding et accès du support
+
+| Scénario | Compte | Résultat attendu |
+|---|---|---|
+| Administration → « Support » → nouveau ticket | admin de la salle | Ticket #N « En attente du support » ; avis à `SUPPORT_EMAIL` s'il est défini |
+| Super Admin → « Support » → ticket → note interne, puis réponse | superadmin | La salle ne voit pas la note ; la réponse passe le ticket en « Réponse attendue » et part par e-mail |
+| La salle répond, puis « Clore le ticket » | admin de la salle | Retour « En attente du support », puis « Clos » (définitif) |
+| Fiche salle → « Accès du support » → choisir un compte, motif, durée | superadmin | Espace de la salle affiché avec le bandeau rouge « consultation seule » ; toute modification et tout export refusés ; e-mail aux administrateurs |
+| « Quitter l'accès » dans le bandeau | superadmin | Retour sur la fiche de la salle ; l'accès apparaît terminé dans Administration → Support |
+| Super Admin → « Nouvelle salle », puis connexion de son administrateur | nouvel admin | Carte « Mise en route » sur le tableau de bord ; assistant en 5 étapes ; « Terminer » exige une formule |
+
+Les salles existant avant ce sprint sont considérées comme déjà mises en route (pas d'assistant).
+
 ## Facturation ZahDigit
 
 Conditions (modifiables dans `modules/billing/billing.rules.ts`) : essai de 30 jours, factures payables sous 7 jours, lecture seule à J+7, suspension à J+15. La tâche quotidienne s'appelle avec `curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3100/api/cron/facturation`.

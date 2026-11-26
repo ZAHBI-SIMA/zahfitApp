@@ -17,9 +17,10 @@ export const instant = false;
 
 export default async function EspacePage() {
   const user = await requireUser();
-  if (isSuperAdmin(user)) redirect("/super-admin");
-
   const ctx = await getTenantContext();
+  // Super Admin : son espace, sauf pendant un accès du support (espace consulté).
+  if (isSuperAdmin(user) && !ctx?.supportAccess) redirect("/super-admin");
+
   const home = ctx ? homeSpaceFor(ctx.role) : null;
   if (home) redirect(`/${home}`);
 

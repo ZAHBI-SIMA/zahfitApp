@@ -7,7 +7,12 @@ import { InvoiceList } from "@/components/billing/invoice-list";
 import { TenantPlanForm } from "@/components/saas/saas-forms";
 import { UsageMeter } from "@/components/saas/usage-meter";
 import { EditTenantForm, SuspendTenantForm } from "@/components/tenants/tenant-forms";
+import { StartSupportAccessForm } from "@/components/support/support-forms";
+import { SupportAccessList } from "@/components/support/ticket-views";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { ticketRef } from "@/modules/support/support.rules";
+import { listSupportAccesses } from "@/modules/support/support.service";
 import { withPlatform } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { ROLE_LABELS, TENANT_STATUS_LABELS } from "@/lib/labels";
@@ -40,9 +45,15 @@ export default async function TenantDetailPage({ params, searchParams }: PagePro
     }),
   );
   if (!tenant) notFound();
-  const { usage, plans, billing } = await withPlatform(user.id, async (tx) => ({
+  const { usage, plans, billing, accesses, openTickets } = await withPlatform(user.id, async (tx) => ({
     usage: await tenantUsage(tx, tenant.id),
     billing: await tenantBilling(tx, tenant.id),
+    accesses: await listSupportAccesses(tx, tenant.id, 10),
+    openTickets: await tx.supportTicket.findMany({
+      where: { tenantId: tenant.id, status: { not: "CLOSED" } },
+      orderBy: { lastActivityAt: "desc" },
+      select: { id: true, number: true, subject: true },
+    }),
     plans: await tx.saasPlan.findMany({
       orderBy: [{ sortOrder: "asc" }, { monthlyPriceXof: "asc" }],
       select: { id: true, name: true, monthlyPriceXof: true, isActive: true },
@@ -122,6 +133,41 @@ export default async function TenantDetailPage({ params, searchParams }: PagePro
           </div>
         )}
         <InvoiceList invoices={billing.invoices.slice(0, 6)} canPay={false} today={todayCalendar()} />
+      </section>
+
+      <section className="mb-6 rounded-xl border bg-card p-5" aria-labelledby="support">
+        <h2 id="support" className="mb-1 text-sm font-medium">
+          Accès du support
+        </h2>
+        <p className="mb-4 text-xs text-muted-foreground">
+          Afficher l&apos;espace d&apos;un membre du personnel tel qu&apos;il le voit, en consultation seule, pour diagnostiquer
+          un problème. La salle est prévenue et voit chaque accès dans son historique.
+          {openTickets.length > 0 && (
+            <>
+              {" "}
+              Tickets ouverts :{" "}
+              {openTickets.map((t, i) => (
+                <span key={t.id}>
+                  {i > 0 && ", "}
+                  <Link href={`/super-admin/support/${t.id}`} className="text-brand hover:underline">
+                    {ticketRef(t.number)}
+                  </Link>
+                </span>
+              ))}
+              .
+            </>
+          )}
+        </p>
+        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+          <StartSupportAccessForm
+            tenantId={tenant.id}
+            staff={tenant.memberships
+              .filter((m) => m.status === "ACTIVE")
+              .map((m) => ({ userId: m.userId, label: `${m.user.name} — ${ROLE_LABELS[m.role]}` }))}
+            tickets={openTickets.map((t) => ({ id: t.id, label: `${ticketRef(t.number)} — ${t.subject}` }))}
+          />
+          <SupportAccessList accesses={accesses} />
+        </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">

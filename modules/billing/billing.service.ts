@@ -151,7 +151,8 @@ export async function refreshBillingStatus(tx: Tx, tenantId: string, today: Date
 
 // --- Cycle quotidien ----------------------------------------------------------------
 
-async function adminEmails(tx: Tx, tenantId: string) {
+/** E-mails des administrateurs actifs d'une salle (destinataires des avis importants). */
+export async function adminEmails(tx: Tx, tenantId: string) {
   const admins = await tx.tenantMembership.findMany({
     where: { tenantId, role: "ADMIN", status: "ACTIVE" },
     select: { user: { select: { email: true } } },

@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 import { auth } from "@/lib/auth";
-import { withUser } from "@/lib/db";
+import { withPlatform, withUser } from "@/lib/db";
 import type { SaasFeature, SaasSubscriptionStatus, TenantRole, TenantStatus } from "@/lib/generated/prisma/enums";
 import { ROLE_PERMISSIONS, requiresTwoFactor, type Permission } from "@/lib/rbac/permissions";
 import { canAccessSpace, type TenantSpace } from "@/lib/rbac/spaces";
+import { findActiveSupportAccess } from "@/modules/support/support.service";
 
 /**
  * Data Access Layer de l'authentification : SEUL endroit où l'on lit la
@@ -16,6 +17,8 @@ import { canAccessSpace, type TenantSpace } from "@/lib/rbac/spaces";
  */
 
 export const ACTIVE_TENANT_COOKIE = "zf_tenant";
+/** Accès du support ZahDigit en cours (identifiant d'une ligne support_accesses). */
+export const SUPPORT_ACCESS_COOKIE = "zf_support";
 
 export type SessionUser = {
   id: string;
@@ -37,6 +40,11 @@ export type TenantContext = {
   features: readonly SaasFeature[];
   /** Abonnement ZAHFIT (null : salle sans facturation, ex. environnement de test). */
   billingStatus: SaasSubscriptionStatus | null;
+  /**
+   * Accès du support ZahDigit en cours : `user` est alors le compte du
+   * personnel CONSULTÉ, et toute modification est refusée (lecture seule).
+   */
+  supportAccess: { id: string; agent: { id: string; name: string }; expiresAt: Date; reason: string } | null;
 };
 
 const enforce2FA = () => process.env.ENFORCE_2FA !== "false";
@@ -63,25 +71,91 @@ export async function requireUser(): Promise<SessionUser> {
 
 export const isSuperAdmin = (user: SessionUser) => user.platformRole === "SUPER_ADMIN";
 
+const TENANT_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  status: true,
+  saasPlan: { select: { id: true, code: true, name: true, features: true } },
+  billing: { select: { status: true } },
+} as const;
+
+type TenantRow = {
+  id: string;
+  name: string;
+  slug: string;
+  status: TenantStatus;
+  saasPlan: { id: string; code: string; name: string; features: SaasFeature[] };
+  billing: { status: SaasSubscriptionStatus } | null;
+};
+
+function buildContext(
+  user: SessionUser,
+  row: TenantRow,
+  role: TenantRole,
+  otherTenants: TenantContext["otherTenants"],
+  supportAccess: TenantContext["supportAccess"],
+): TenantContext {
+  const { saasPlan, billing, ...tenant } = row;
+  return {
+    user,
+    tenant,
+    plan: { id: saasPlan.id, code: saasPlan.code, name: saasPlan.name },
+    features: saasPlan.features ?? [],
+    billingStatus: billing?.status ?? null,
+    role,
+    permissions: ROLE_PERMISSIONS[role],
+    otherTenants,
+    supportAccess,
+  };
+}
+
+/**
+ * Accès du support en cours (cookie `zf_support`), pour un Super Admin :
+ * l'espace est construit pour le compte CONSULTÉ (mêmes données, mêmes
+ * menus), le Super Admin restant l'auteur de toute trace. Le cookie seul
+ * ne suffit pas : l'accès doit appartenir à CE Super Admin et être en cours.
+ */
+async function supportContext(agent: SessionUser): Promise<TenantContext | null> {
+  const accessId = (await cookies()).get(SUPPORT_ACCESS_COOKIE)?.value;
+  if (!accessId || !/^[0-9a-f-]{36}$/.test(accessId)) return null;
+  return withPlatform(agent.id, async (tx) => {
+    const access = await findActiveSupportAccess(tx, accessId, agent.id);
+    if (!access) return null;
+    const membership = await tx.tenantMembership.findFirst({
+      where: { tenantId: access.tenantId, userId: access.targetUserId, status: "ACTIVE", tenant: { deletedAt: null } },
+      include: { user: { select: { id: true, name: true, email: true } }, tenant: { select: TENANT_SELECT } },
+    });
+    // Compte désactivé ou devenu adhérent entre-temps : l'accès ne vaut plus.
+    if (!membership || membership.role === "MEMBER") return null;
+    const target: SessionUser = {
+      ...membership.user,
+      platformRole: null,
+      // La double authentification exigée est celle de l'agent, pas du compte consulté.
+      twoFactorEnabled: agent.twoFactorEnabled,
+    };
+    return buildContext(target, membership.tenant, membership.role, [], {
+      id: access.id,
+      agent: { id: agent.id, name: agent.name },
+      expiresAt: access.expiresAt,
+      reason: access.reason,
+    });
+  });
+}
+
 /** Salle active : celle du cookie si l'utilisateur y a accès, sinon la première. */
 export const getTenantContext = cache(async (): Promise<TenantContext | null> => {
   const user = await requireUser();
 
+  if (isSuperAdmin(user)) {
+    const support = await supportContext(user);
+    if (support) return support;
+  }
+
   const memberships = await withUser(user.id, (tx) =>
     tx.tenantMembership.findMany({
       where: { userId: user.id, status: "ACTIVE", tenant: { deletedAt: null } },
-      include: {
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            status: true,
-            saasPlan: { select: { id: true, code: true, name: true, features: true } },
-            billing: { select: { status: true } },
-          },
-        },
-      },
+      include: { tenant: { select: TENANT_SELECT } },
       orderBy: { createdAt: "asc" },
     }),
   );
@@ -90,19 +164,13 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   const wanted = (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value;
   const active = memberships.find((m) => m.tenantId === wanted) ?? memberships[0];
 
-  const { saasPlan, billing, ...tenant } = active.tenant;
-  return {
+  return buildContext(
     user,
-    tenant,
-    plan: { id: saasPlan.id, code: saasPlan.code, name: saasPlan.name },
-    features: saasPlan.features ?? [],
-    billingStatus: billing?.status ?? null,
-    role: active.role,
-    permissions: ROLE_PERMISSIONS[active.role],
-    otherTenants: memberships
-      .filter((m) => m.tenantId !== active.tenantId)
-      .map((m) => ({ id: m.tenant.id, name: m.tenant.name })),
-  };
+    active.tenant,
+    active.role,
+    memberships.filter((m) => m.tenantId !== active.tenantId).map((m) => ({ id: m.tenant.id, name: m.tenant.name })),
+    null,
+  );
 });
 
 /**

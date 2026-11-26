@@ -5,6 +5,7 @@ import { NAVIGATION } from "@/lib/navigation";
 import { PERMISSION_FEATURE, hasFeature } from "@/modules/saas/features";
 import { getTenantContext, guardSpace, guardSuperAdmin } from "@/lib/session";
 import { ROLE_LABELS } from "@/lib/labels";
+import { formatDateTime } from "@/lib/format";
 import { AppShell, ShellSkeleton } from "@/components/shell/app-shell";
 
 const TENANT_SPACES: TenantSpace[] = ["admin", "reception", "coach", "member"];
@@ -79,5 +80,13 @@ async function loadShell(space: Space) {
         : undefined,
     roleLabel: ROLE_LABELS[ctx.role],
     otherSpaces,
+    support: ctx.supportAccess
+      ? {
+          agentName: ctx.supportAccess.agent.name,
+          targetName: ctx.user.name,
+          roleLabel: ROLE_LABELS[ctx.role],
+          until: formatDateTime(ctx.supportAccess.expiresAt),
+        }
+      : undefined,
   };
 }
